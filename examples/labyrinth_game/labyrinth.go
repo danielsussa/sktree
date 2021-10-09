@@ -55,7 +55,7 @@ type game struct {
 	TotalMoves int
 	MaxMoves   int
 	Score      float64
-	EndGame    bool
+	WinGame    bool
 }
 
 func (g game) ID() string {
@@ -141,7 +141,7 @@ func (g game) PlayAction(action interface{}) tree.State {
 		g.PlayerMap[j][i] = " "
 		g.PlayerMap[jd][id] = "P"
 	case "go_to_end":
-		g.EndGame = true
+		g.WinGame = true
 	}
 	g.TotalMoves++
 	return g
@@ -170,7 +170,7 @@ func (g game) TurnResult() tree.TurnResult {
 	if g.TotalMoves >= g.MaxMoves {
 		endGame = true
 	}
-	if g.EndGame {
+	if g.WinGame {
 		endGame = true
 	}
 	return tree.TurnResult{

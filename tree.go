@@ -33,23 +33,22 @@ type StateTree struct {
 	debugState   func(state State, debug Debug)
 	debugActions func(actions []*Action, selected *Action)
 	controller   func(req ControllerRequest) ControllerResponse
-	stats        *RootStats
+	stats        *rootStats
 	db           Database
 }
 
-type RootStats struct {
+type rootStats struct {
 	NVisited int
 }
 
 type Node struct {
-	state   State
-	actions []*Action
+	Actions []*Action
 }
 
 type Action struct {
 	ID       interface{}
-	score    float64
-	nVisited int
+	Score    float64
+	NVisited int
 }
 
 type actionScore struct {
@@ -57,13 +56,13 @@ type actionScore struct {
 	score  float64
 }
 
-func (n *Node) selectAction(stats *RootStats) *Action {
+func (n *Node) selectAction(stats *rootStats) *Action {
 	actionScoreList := make([]actionScore, 0)
 
-	for _, action := range n.actions {
+	for _, action := range n.Actions {
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
-			score:  fSelection(action.score, action.nVisited, stats.NVisited),
+			score:  fSelection(action.Score, action.NVisited, stats.NVisited),
 		})
 	}
 	sort.SliceStable(actionScoreList, func(i, j int) bool {
@@ -72,7 +71,7 @@ func (n *Node) selectAction(stats *RootStats) *Action {
 		} else if actionScoreList[i].score < actionScoreList[j].score {
 			return false
 		} else {
-			return actionScoreList[i].action.nVisited < actionScoreList[j].action.nVisited
+			return actionScoreList[i].action.NVisited < actionScoreList[j].action.NVisited
 		}
 	})
 	//n.selected = actionScoreList[0].action
@@ -97,7 +96,6 @@ const (
 func (st *StateTree) newNode(state State) *Node {
 	stateId := newSHA512([]byte(state.ID()))
 	if node, ok := st.db.Find(stateId); ok {
-		node.state = state
 		return node
 	}
 
@@ -105,15 +103,14 @@ func (st *StateTree) newNode(state State) *Node {
 	for _, action := range state.PossibleActions() {
 		actionList = append(actionList, &Action{
 			ID:    action,
-			score: 0,
+			Score: 0,
 		})
 	}
 
 	node := &Node{
-		state:   state,
-		actions: actionList,
+		Actions: actionList,
 	}
-	st.db.Add(stateId, node)
+	_ = st.db.Add(stateId, node)
 	return node
 }
 
@@ -125,6 +122,11 @@ func newSHA256(data []byte) string {
 func newSHA512(data []byte) string {
 	hash := sha512.Sum512(data)
 	return hex.EncodeToString(hash[:])
+}
+
+func (st *StateTree) SetDB(db Database) *StateTree {
+	st.db = db
+	return st
 }
 
 func (st *StateTree) DebugState(f func(state State, debug Debug)) {
@@ -157,41 +159,42 @@ func (st *StateTree) PlayGame(s State) {
 }
 
 func (st *StateTree) playGame(s State) ControllerRequest {
-	node := st.newNode(s.Copy())
-	st.debugState(node.state, Bootstrap)
+	state := s.Copy()
+	st.debugState(state, Bootstrap)
 
 	actionList := make([]*Action, 0)
 
 	for {
+		node := st.newNode(state)
 		currentAction := node.selectAction(st.stats)
-		st.debugActions(node.actions, currentAction)
+		st.debugActions(node.Actions, currentAction)
 
-		state := node.state.Copy()
+		state = state.Copy()
 		state = state.PlayAction(currentAction.ID)
 		state = state.PlaySideEffects()
 
 		result := state.TurnResult()
+		state = result.State
 
 		// new node
-		node = st.newNode(result.State.Copy())
-		st.debugState(node.state, CurrentState)
+		st.debugState(state, CurrentState)
 
 		actionList = append(actionList, currentAction)
 
 		for _, action := range actionList {
-			action.nVisited++
+			action.NVisited++
 		}
 		st.stats.NVisited++
 		if result.EndGame {
 			break
 		}
 	}
-	gameResult := node.state.GameResult()
+	gameResult := state.GameResult()
 	for _, action := range actionList {
-		action.score += gameResult.Score
+		action.Score += gameResult.Score
 	}
 	return ControllerRequest{
-		State: node.state,
+		State: state,
 	}
 }
 
@@ -216,7 +219,7 @@ type TurnResult struct {
 }
 
 func (a Action) GetNVisited() int {
-	return a.nVisited
+	return a.NVisited
 }
 
 func New() *StateTree {
@@ -231,6 +234,6 @@ func New() *StateTree {
 			return ControllerResponse{}
 		},
 		db:    DefaultMemoryDB{nodeMap: map[string]*Node{}},
-		stats: &RootStats{NVisited: 0},
+		stats: &rootStats{NVisited: 0},
 	}
 }
