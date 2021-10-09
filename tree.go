@@ -8,13 +8,33 @@ import (
 	"sort"
 )
 
-type StateTree struct {
-	nodeMap map[string]*Node
+type Database interface {
+	Find(key string) (*Node, bool)
+	Add(key string, node *Node) error
+}
 
+type DefaultMemoryDB struct {
+	nodeMap map[string]*Node
+}
+
+func (dmp DefaultMemoryDB) Find(key string) (*Node, bool) {
+	if node, ok := dmp.nodeMap[key]; ok {
+		return node, true
+	}
+	return nil, false
+}
+
+func (dmp DefaultMemoryDB) Add(key string, node *Node) error {
+	dmp.nodeMap[key] = node
+	return nil
+}
+
+type StateTree struct {
 	debugState   func(state State, debug Debug)
 	debugActions func(actions []*Action, selected *Action)
 	controller   func(req ControllerRequest) ControllerResponse
 	stats        *RootStats
+	db           Database
 }
 
 type RootStats struct {
@@ -24,7 +44,6 @@ type RootStats struct {
 type Node struct {
 	state   State
 	actions []*Action
-	stats   *RootStats
 }
 
 type Action struct {
@@ -38,13 +57,13 @@ type actionScore struct {
 	score  float64
 }
 
-func (n *Node) selectAction() *Action {
+func (n *Node) selectAction(stats *RootStats) *Action {
 	actionScoreList := make([]actionScore, 0)
 
 	for _, action := range n.actions {
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
-			score:  fSelection(action.score, action.nVisited, n.stats.NVisited),
+			score:  fSelection(action.score, action.nVisited, stats.NVisited),
 		})
 	}
 	sort.SliceStable(actionScoreList, func(i, j int) bool {
@@ -77,7 +96,7 @@ const (
 
 func (st *StateTree) newNode(state State) *Node {
 	stateId := newSHA512([]byte(state.ID()))
-	if node, ok := st.nodeMap[stateId]; ok {
+	if node, ok := st.db.Find(stateId); ok {
 		node.state = state
 		return node
 	}
@@ -93,10 +112,8 @@ func (st *StateTree) newNode(state State) *Node {
 	node := &Node{
 		state:   state,
 		actions: actionList,
-		stats:   st.stats,
 	}
-
-	st.nodeMap[stateId] = node
+	st.db.Add(stateId, node)
 	return node
 }
 
@@ -146,7 +163,7 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 	actionList := make([]*Action, 0)
 
 	for {
-		currentAction := node.selectAction()
+		currentAction := node.selectAction(st.stats)
 		st.debugActions(node.actions, currentAction)
 
 		state := node.state.Copy()
@@ -204,7 +221,6 @@ func (a Action) GetNVisited() int {
 
 func New() *StateTree {
 	return &StateTree{
-		nodeMap: map[string]*Node{},
 		debugState: func(state State, debug Debug) {
 			// default
 		},
@@ -214,6 +230,7 @@ func New() *StateTree {
 		controller: func(req ControllerRequest) ControllerResponse {
 			return ControllerResponse{}
 		},
+		db:    DefaultMemoryDB{nodeMap: map[string]*Node{}},
 		stats: &RootStats{NVisited: 0},
 	}
 }
