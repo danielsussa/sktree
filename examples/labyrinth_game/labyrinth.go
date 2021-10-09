@@ -127,7 +127,6 @@ func (g game) PlayAction(action interface{}) tree.State {
 		g.PlayerMap[j][i+1] = "P"
 	case "get_key":
 		g.HasKey = true
-		g.Score++
 		jk, ik := findPlace(g.PlaceMap, "K")
 		g.PlaceMap[j][i] = " "
 		g.PlaceMap[jk][ik] = "P"
@@ -135,7 +134,6 @@ func (g game) PlayAction(action interface{}) tree.State {
 		g.PlayerMap[j][i] = " "
 		g.PlayerMap[jk][ik] = "P"
 	case "open_door":
-		g.Score++
 		jd, id := findPlace(g.PlaceMap, "D")
 		g.PlaceMap[j][i] = " "
 		g.PlaceMap[jd][id] = "P"
@@ -143,7 +141,6 @@ func (g game) PlayAction(action interface{}) tree.State {
 		g.PlayerMap[j][i] = " "
 		g.PlayerMap[jd][id] = "P"
 	case "go_to_end":
-		g.Score += 5
 		g.EndGame = true
 	}
 	g.TotalMoves++
@@ -170,7 +167,7 @@ func (g game) PlaySideEffects() tree.State {
 
 func (g game) TurnResult() tree.TurnResult {
 	endGame := false
-	if g.TotalMoves > g.MaxMoves {
+	if g.TotalMoves >= g.MaxMoves {
 		endGame = true
 	}
 	if g.EndGame {
@@ -178,8 +175,14 @@ func (g game) TurnResult() tree.TurnResult {
 	}
 	return tree.TurnResult{
 		State:   g,
-		Score:   g.Score,
 		EndGame: endGame,
+	}
+}
+
+func (g game) GameResult() tree.GameResult {
+	return tree.GameResult{
+		State: g,
+		Score: float64(g.MaxMoves - g.TotalMoves),
 	}
 }
 

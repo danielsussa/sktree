@@ -33,11 +33,6 @@ type Action struct {
 	nVisited int
 }
 
-func (a *Action) compute(res TurnResult) {
-	a.nVisited++
-	a.score += res.Score
-}
-
 type actionScore struct {
 	action *Action
 	score  float64
@@ -69,7 +64,7 @@ func fSelection(total float64, nVisited, NVisited int) float64 {
 	exploitation := total / float64(nVisited)
 	exploration := math.Sqrt(2 * math.Log(float64(NVisited)) / float64(nVisited))
 	sum := exploitation + exploration
-	return math.Round(sum*100) / 100
+	return (sum * 100) / 100
 }
 
 // DebugState Mode
@@ -159,11 +154,6 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		state = state.PlaySideEffects()
 
 		result := state.TurnResult()
-		if result.EndGame {
-			return ControllerRequest{
-				State: state,
-			}
-		}
 
 		// new node
 		node = st.newNode(result.State.Copy())
@@ -172,8 +162,19 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		actionList = append(actionList, currentAction)
 
 		for _, action := range actionList {
-			action.compute(result)
+			action.nVisited++
 		}
+		st.stats.NVisited++
+		if result.EndGame {
+			break
+		}
+	}
+	gameResult := node.state.GameResult()
+	for _, action := range actionList {
+		action.score += gameResult.Score
+	}
+	return ControllerRequest{
+		State: node.state,
 	}
 }
 
@@ -184,11 +185,16 @@ type State interface {
 	PlayAction(interface{}) State
 	PlaySideEffects() State
 	TurnResult() TurnResult
+	GameResult() GameResult
+}
+
+type GameResult struct {
+	State State
+	Score float64
 }
 
 type TurnResult struct {
 	State   State
-	Score   float64
 	EndGame bool
 }
 
