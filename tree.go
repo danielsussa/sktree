@@ -2,6 +2,7 @@ package tree
 
 import (
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"math"
 	"sort"
@@ -9,22 +10,21 @@ import (
 
 type StateTree struct {
 	nodeMap map[string]*Node
-	Root    *Node
 
 	debugState   func(state State, debug Debug)
 	debugActions func(actions []*Action, selected *Action)
-	stats        *Stats
+	controller   func(req ControllerRequest) ControllerResponse
+	stats        *RootStats
 }
 
-type Stats struct {
+type RootStats struct {
 	NVisited int
 }
 
 type Node struct {
 	state   State
-	parent  *Node
 	actions []*Action
-	stats   *Stats
+	stats   *RootStats
 }
 
 type Action struct {
@@ -65,15 +65,6 @@ func (n *Node) selectAction() *Action {
 	return actionScoreList[0].action
 }
 
-//func (n *Node) backPropagate(res TurnResult) {
-//	n.selected.nVisited++
-//	n.selected.score += res.Score
-//	if n.parent == nil {
-//		return
-//	}
-//	n.parent.backPropagate(res)
-//}
-
 func fSelection(total float64, nVisited, NVisited int) float64 {
 	exploitation := total / float64(nVisited)
 	exploration := math.Sqrt(2 * math.Log(float64(NVisited)) / float64(nVisited))
@@ -89,8 +80,8 @@ const (
 	CurrentState Debug = "current_action"
 )
 
-func (st *StateTree) newNode(state State, parentNode *Node) *Node {
-	stateId := newSHA256([]byte(state.ID()))
+func (st *StateTree) newNode(state State) *Node {
+	stateId := newSHA512([]byte(state.ID()))
 	if node, ok := st.nodeMap[stateId]; ok {
 		node.state = state
 		return node
@@ -105,7 +96,6 @@ func (st *StateTree) newNode(state State, parentNode *Node) *Node {
 	}
 
 	node := &Node{
-		parent:  parentNode,
 		state:   state,
 		actions: actionList,
 		stats:   st.stats,
@@ -120,6 +110,11 @@ func newSHA256(data []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
+func newSHA512(data []byte) string {
+	hash := sha512.Sum512(data)
+	return hex.EncodeToString(hash[:])
+}
+
 func (st *StateTree) DebugState(f func(state State, debug Debug)) {
 	st.debugState = f
 }
@@ -128,10 +123,29 @@ func (st *StateTree) DebugAction(f func(actions []*Action, selected *Action)) {
 	st.debugActions = f
 }
 
-func (st *StateTree) PlayGame(s State) {
+type ControllerRequest struct {
+	State State
+}
 
-	node := st.newNode(s.Copy(), nil)
-	st.Root = node
+type ControllerResponse struct {
+	Restart bool
+}
+
+func (st *StateTree) Controller(f func(req ControllerRequest) ControllerResponse) {
+	st.controller = f
+}
+
+func (st *StateTree) PlayGame(s State) {
+	for {
+		res := st.controller(st.playGame(s))
+		if !res.Restart {
+			break
+		}
+	}
+}
+
+func (st *StateTree) playGame(s State) ControllerRequest {
+	node := st.newNode(s.Copy())
 	st.debugState(node.state, Bootstrap)
 
 	actionList := make([]*Action, 0)
@@ -146,11 +160,13 @@ func (st *StateTree) PlayGame(s State) {
 
 		result := state.TurnResult()
 		if result.EndGame {
-			break
+			return ControllerRequest{
+				State: state,
+			}
 		}
 
 		// new node
-		node = st.newNode(result.State.Copy(), node)
+		node = st.newNode(result.State.Copy())
 		st.debugState(node.state, CurrentState)
 
 		actionList = append(actionList, currentAction)
@@ -159,8 +175,6 @@ func (st *StateTree) PlayGame(s State) {
 			action.compute(result)
 		}
 	}
-	// compute
-
 }
 
 type State interface {
@@ -191,6 +205,9 @@ func New() *StateTree {
 		debugActions: func(actions []*Action, selected *Action) {
 
 		},
-		stats: &Stats{NVisited: 0},
+		controller: func(req ControllerRequest) ControllerResponse {
+			return ControllerResponse{}
+		},
+		stats: &RootStats{NVisited: 0},
 	}
 }
