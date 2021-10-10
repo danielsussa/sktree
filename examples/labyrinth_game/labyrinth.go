@@ -58,11 +58,11 @@ type game struct {
 	WinGame    bool
 }
 
-func (g game) ID() string {
+func (g *game) ID() string {
 	return fmt.Sprintf("%v-%v", g.PlaceMap, g.HasKey)
 }
 
-func (g game) PossibleActions() []interface{} {
+func (g *game) PossibleActions() []interface{} {
 	j, i := findPlace(g.PlaceMap, "P")
 
 	up := g.PlaceMap[j-1][i]
@@ -98,7 +98,7 @@ func (g game) PossibleActions() []interface{} {
 	return actions
 }
 
-func (g game) PlayAction(action interface{}) tree.State {
+func (g *game) PlayAction(action interface{}) {
 	j, i := findPlace(g.PlaceMap, "P")
 	switch action.(string) {
 	case "move_up":
@@ -144,7 +144,6 @@ func (g game) PlayAction(action interface{}) tree.State {
 		g.WinGame = true
 	}
 	g.TotalMoves++
-	return g
 }
 
 func (g game) Print() {
@@ -161,11 +160,11 @@ func (g game) Print() {
 	fmt.Println()
 }
 
-func (g game) PlaySideEffects() tree.State {
-	return g
+func (g *game) PlaySideEffects() {
+
 }
 
-func (g game) TurnResult(request tree.TurnRequest) tree.TurnResult {
+func (g *game) TurnResult(request tree.TurnRequest) tree.TurnResult {
 	endGame := false
 	if g.TotalMoves >= g.MaxMoves {
 		endGame = true
@@ -174,21 +173,19 @@ func (g game) TurnResult(request tree.TurnRequest) tree.TurnResult {
 		endGame = true
 	}
 	return tree.TurnResult{
-		State:   g,
 		EndGame: endGame,
 	}
 }
 
-func (g game) GameResult() tree.GameResult {
+func (g *game) GameResult() tree.GameResult {
 	return tree.GameResult{
-		State: g,
 		Score: g.MaxMoves - g.TotalMoves,
 	}
 }
 
-func (g game) Copy() tree.State {
+func (g *game) Copy() tree.State {
 	b, _ := json.Marshal(g)
-	gCopy := game{}
+	gCopy := &game{}
 	_ = json.Unmarshal(b, &gCopy)
 	return gCopy
 }

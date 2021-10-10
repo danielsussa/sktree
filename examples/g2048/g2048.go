@@ -29,7 +29,7 @@ func (gs g2048stats) print() {
 }
 
 func (g g2048) Copy() tree.State {
-	return g2048{
+	return &g2048{
 		board: copy2DArr(g.board),
 		score: g.score,
 		stats: g2048stats{
@@ -198,7 +198,7 @@ func (g g2048) ID() string {
 	return fmt.Sprintf("%v", g.board)
 }
 
-func (g g2048) PlayAction(i interface{}) tree.State {
+func (g *g2048) PlayAction(i interface{}) {
 	score := 0
 	if i.(string) == "D" {
 		score += computeDown(g.board)
@@ -209,28 +209,22 @@ func (g g2048) PlayAction(i interface{}) tree.State {
 	} else if i.(string) == "L" {
 		score += computeLeft(g.board)
 	}
-	return g2048{board: g.board, score: g.score + score, stats: g2048stats{
-		statistics: addStatistic(g.board, g.stats.statistics),
-		iterations: g.stats.iterations + 1,
-	}}
+	g.score += score
 }
 
-func (g g2048) PlaySideEffects() tree.State {
+func (g g2048) PlaySideEffects() {
 	addNumberOnBoard(g.board)
-	return g
 }
 
 func (g g2048) TurnResult(r tree.TurnRequest) tree.TurnResult {
 	iters := len(getAllIterations(g.board))
 	return tree.TurnResult{
-		State:   g,
 		EndGame: iters == 0,
 	}
 }
 
 func (g g2048) GameResult() tree.GameResult {
 	return tree.GameResult{
-		State: g,
 		Score: g.score,
 	}
 }
@@ -377,8 +371,8 @@ func copy2DArr(src [][]int) [][]int {
 	return duplicate
 }
 
-func startNewGame() g2048 {
-	game := g2048{
+func startNewGame() *g2048 {
+	game := &g2048{
 		board: newArr(),
 		stats: g2048stats{
 			statistics: newArr(),

@@ -28,7 +28,7 @@ func TestLabyrinth(t *testing.T) {
 	totalWins := 0
 
 	treeGame.Controller(func(req tree.ControllerRequest) tree.ControllerResponse {
-		game := req.State.(game)
+		game := req.State.(*game)
 		//game.Print()
 		//fmt.Println("turn: ", game.TotalMoves)
 		if game.WinGame {
@@ -44,6 +44,6 @@ func TestLabyrinth(t *testing.T) {
 		return tree.ControllerResponse{Restart: true}
 	})
 
-	treeGame.PlayGame(labGame)
+	treeGame.PlayGame(&labGame)
 
 }

@@ -131,15 +131,15 @@ func parseToNode(key, val string) *Node {
 	}
 }
 
-func (st *StateTree) newNode(state State, nodeMap map[string]*Node) *Node {
+func (st *StateTree) newNode(state State, nodeMap map[string]*Node) (*Node, bool) {
 	stateId := state.ID()
 	if val, ok := nodeMap[stateId]; ok {
-		return val
+		return val, false
 	}
 	if val, ok := st.db.Find(stateId); ok {
 		node := parseToNode(stateId, val)
 		node.id = stateId
-		return node
+		return node, false
 	}
 
 	actionList := make([]*Action, 0)
@@ -154,7 +154,7 @@ func (st *StateTree) newNode(state State, nodeMap map[string]*Node) *Node {
 		Actions: actionList,
 		id:      stateId,
 	}
-	return node
+	return node, true
 }
 
 func newSHA256(data []byte) string {
@@ -207,17 +207,19 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 	nodeMap := make(map[string]*Node, 0)
 	actionList := make([]*Action, 0)
 
+	depth := 0
 	for {
-		node := st.newNode(state, nodeMap)
+		node, newNode := st.newNode(state, nodeMap)
+		if newNode {
+			depth++
+		}
 		currentAction := node.selectAction(st.stats)
 		st.debugActions(node.Actions, currentAction)
 
-		state = state.Copy()
-		state = state.PlayAction(currentAction.ID)
-		state = state.PlaySideEffects()
+		state.PlayAction(currentAction.ID)
+		state.PlaySideEffects()
 
-		result := state.TurnResult(TurnRequest{Depth: len(actionList)})
-		state = result.State
+		result := state.TurnResult(TurnRequest{Depth: depth})
 
 		// new node
 		st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
@@ -250,14 +252,13 @@ type State interface {
 	ID() string
 	PossibleActions() []interface{}
 	Copy() State
-	PlayAction(interface{}) State
-	PlaySideEffects() State
+	PlayAction(interface{})
+	PlaySideEffects()
 	TurnResult(TurnRequest) TurnResult
 	GameResult() GameResult
 }
 
 type GameResult struct {
-	State State
 	Score int
 }
 
@@ -266,7 +267,6 @@ type TurnRequest struct {
 }
 
 type TurnResult struct {
-	State   State
 	EndGame bool
 }
 
