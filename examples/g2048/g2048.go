@@ -231,7 +231,7 @@ func (g g2048) TurnResult(r tree.TurnRequest) tree.TurnResult {
 func (g g2048) GameResult() tree.GameResult {
 	return tree.GameResult{
 		State: g,
-		Score: float64(g.score),
+		Score: g.score,
 	}
 }
 

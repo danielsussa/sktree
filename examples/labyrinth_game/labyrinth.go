@@ -182,7 +182,7 @@ func (g game) TurnResult(request tree.TurnRequest) tree.TurnResult {
 func (g game) GameResult() tree.GameResult {
 	return tree.GameResult{
 		State: g,
-		Score: float64(g.MaxMoves - g.TotalMoves),
+		Score: g.MaxMoves - g.TotalMoves,
 	}
 }
 

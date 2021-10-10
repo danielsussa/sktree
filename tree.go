@@ -4,28 +4,31 @@ import (
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/hex"
+	"fmt"
 	"math"
 	"sort"
+	"strconv"
+	"strings"
 )
 
 type Database interface {
-	Find(string) (*Node, bool)
-	Add(string, *Node) error
+	Find(string) (string, bool)
+	Add(string, string) error
 }
 
 type DefaultMemoryDB struct {
-	nodeMap map[string]*Node
+	nodeMap map[string]string
 }
 
-func (dmp DefaultMemoryDB) Find(key string) (*Node, bool) {
+func (dmp DefaultMemoryDB) Find(key string) (string, bool) {
 	if node, ok := dmp.nodeMap[key]; ok {
 		return node, true
 	}
-	return nil, false
+	return "", false
 }
 
-func (dmp DefaultMemoryDB) Add(key string, node *Node) error {
-	dmp.nodeMap[key] = node
+func (dmp DefaultMemoryDB) Add(key, val string) error {
+	dmp.nodeMap[key] = val
 	return nil
 }
 
@@ -46,6 +49,14 @@ type Node struct {
 	id      string
 }
 
+func (n Node) toDB() string {
+	var b strings.Builder
+	for _, act := range n.Actions {
+		b.WriteString(fmt.Sprintf("%s;%d;%d;", act.ID, act.NVisited, act.Score))
+	}
+	return strings.TrimRight(b.String(), ";")
+}
+
 type NodeDebug struct {
 	Id    string
 	State State
@@ -53,7 +64,7 @@ type NodeDebug struct {
 
 type Action struct {
 	ID       interface{}
-	Score    float64
+	Score    int
 	NVisited int
 }
 
@@ -68,7 +79,7 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 	for _, action := range n.Actions {
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
-			score:  fSelection(action.Score, action.NVisited, stats.NVisited),
+			score:  fSelection(float64(action.Score), action.NVisited, stats.NVisited),
 		})
 	}
 	sort.SliceStable(actionScoreList, func(i, j int) bool {
@@ -99,9 +110,34 @@ const (
 	CurrentState Debug = "current_action"
 )
 
-func (st *StateTree) newNode(state State) *Node {
-	stateId := newSHA512([]byte(state.ID()))
-	if node, ok := st.db.Find(stateId); ok {
+func parseToNode(key, val string) *Node {
+	valSpl := strings.Split(val, ";")
+
+	actions := make([]*Action, 0)
+	for i := 0; i < len(valSpl); i += 3 {
+		id := valSpl[i]
+		nVisited, _ := strconv.Atoi(valSpl[i+1])
+		score, _ := strconv.Atoi(valSpl[i+2])
+		actions = append(actions, &Action{
+			ID:       id,
+			Score:    score,
+			NVisited: nVisited,
+		})
+	}
+
+	return &Node{
+		Actions: actions,
+		id:      key,
+	}
+}
+
+func (st *StateTree) newNode(state State, nodeMap map[string]*Node) *Node {
+	stateId := state.ID()
+	if val, ok := nodeMap[stateId]; ok {
+		return val
+	}
+	if val, ok := st.db.Find(stateId); ok {
+		node := parseToNode(stateId, val)
 		node.id = stateId
 		return node
 	}
@@ -172,7 +208,7 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 	actionList := make([]*Action, 0)
 
 	for {
-		node := st.newNode(state)
+		node := st.newNode(state, nodeMap)
 		currentAction := node.selectAction(st.stats)
 		st.debugActions(node.Actions, currentAction)
 
@@ -202,7 +238,7 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		action.Score += gameResult.Score
 	}
 	for key, val := range nodeMap {
-		_ = st.db.Add(key, val)
+		_ = st.db.Add(key, val.toDB())
 	}
 
 	return ControllerRequest{
@@ -222,7 +258,7 @@ type State interface {
 
 type GameResult struct {
 	State State
-	Score float64
+	Score int
 }
 
 type TurnRequest struct {
@@ -249,7 +285,7 @@ func New() *StateTree {
 		controller: func(req ControllerRequest) ControllerResponse {
 			return ControllerResponse{}
 		},
-		db:    DefaultMemoryDB{nodeMap: map[string]*Node{}},
+		db:    DefaultMemoryDB{nodeMap: map[string]string{}},
 		stats: &rootStats{NVisited: 0},
 	}
 }

@@ -1,8 +1,6 @@
 package defaultdb
 
 import (
-	"encoding/json"
-	tree "github.com/danielsussa/tmp_tree"
 	"github.com/peterbourgon/diskv"
 )
 
@@ -10,23 +8,16 @@ type DiskPersistence struct {
 	d *diskv.Diskv
 }
 
-func (dmp DiskPersistence) Find(key string) (*tree.Node, bool) {
+func (dmp DiskPersistence) Find(key string) (string, bool) {
 	b, err := dmp.d.Read(key)
 	if err != nil {
-		return nil, false
+		return "", false
 	}
-
-	var node *tree.Node
-	err = json.Unmarshal(b, &node)
-	if err != nil {
-		panic(err)
-	}
-	return node, true
+	return string(b), true
 }
 
-func (dmp DiskPersistence) Add(key string, node *tree.Node) error {
-	b, _ := json.Marshal(node)
-	err := dmp.d.Write(key, b)
+func (dmp DiskPersistence) Add(key, value string) error {
+	err := dmp.d.Write(key, []byte(value))
 	if err != nil {
 		panic(err)
 	}
