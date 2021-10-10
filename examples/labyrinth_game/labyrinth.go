@@ -165,7 +165,7 @@ func (g game) PlaySideEffects() tree.State {
 	return g
 }
 
-func (g game) TurnResult() tree.TurnResult {
+func (g game) TurnResult(request tree.TurnRequest) tree.TurnResult {
 	endGame := false
 	if g.TotalMoves >= g.MaxMoves {
 		endGame = true

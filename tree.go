@@ -9,8 +9,8 @@ import (
 )
 
 type Database interface {
-	Find(key string) (*Node, bool)
-	Add(key string, node *Node) error
+	Find(string) (*Node, bool)
+	Add(string, *Node) error
 }
 
 type DefaultMemoryDB struct {
@@ -30,7 +30,7 @@ func (dmp DefaultMemoryDB) Add(key string, node *Node) error {
 }
 
 type StateTree struct {
-	debugState   func(state State, debug Debug)
+	debugState   func(node NodeDebug, debug Debug)
 	debugActions func(actions []*Action, selected *Action)
 	controller   func(req ControllerRequest) ControllerResponse
 	stats        *rootStats
@@ -43,6 +43,12 @@ type rootStats struct {
 
 type Node struct {
 	Actions []*Action
+	id      string
+}
+
+type NodeDebug struct {
+	Id    string
+	State State
 }
 
 type Action struct {
@@ -96,6 +102,7 @@ const (
 func (st *StateTree) newNode(state State) *Node {
 	stateId := newSHA512([]byte(state.ID()))
 	if node, ok := st.db.Find(stateId); ok {
+		node.id = stateId
 		return node
 	}
 
@@ -109,8 +116,8 @@ func (st *StateTree) newNode(state State) *Node {
 
 	node := &Node{
 		Actions: actionList,
+		id:      stateId,
 	}
-	_ = st.db.Add(stateId, node)
 	return node
 }
 
@@ -129,7 +136,7 @@ func (st *StateTree) SetDB(db Database) *StateTree {
 	return st
 }
 
-func (st *StateTree) DebugState(f func(state State, debug Debug)) {
+func (st *StateTree) DebugState(f func(n NodeDebug, debug Debug)) {
 	st.debugState = f
 }
 
@@ -160,8 +167,8 @@ func (st *StateTree) PlayGame(s State) {
 
 func (st *StateTree) playGame(s State) ControllerRequest {
 	state := s.Copy()
-	st.debugState(state, Bootstrap)
 
+	nodeMap := make(map[string]*Node, 0)
 	actionList := make([]*Action, 0)
 
 	for {
@@ -173,11 +180,11 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		state = state.PlayAction(currentAction.ID)
 		state = state.PlaySideEffects()
 
-		result := state.TurnResult()
+		result := state.TurnResult(TurnRequest{Depth: len(actionList)})
 		state = result.State
 
 		// new node
-		st.debugState(state, CurrentState)
+		st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
 
 		actionList = append(actionList, currentAction)
 
@@ -185,6 +192,7 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 			action.NVisited++
 		}
 		st.stats.NVisited++
+		nodeMap[node.id] = node
 		if result.EndGame {
 			break
 		}
@@ -193,6 +201,10 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 	for _, action := range actionList {
 		action.Score += gameResult.Score
 	}
+	for key, val := range nodeMap {
+		_ = st.db.Add(key, val)
+	}
+
 	return ControllerRequest{
 		State: state,
 	}
@@ -204,13 +216,17 @@ type State interface {
 	Copy() State
 	PlayAction(interface{}) State
 	PlaySideEffects() State
-	TurnResult() TurnResult
+	TurnResult(TurnRequest) TurnResult
 	GameResult() GameResult
 }
 
 type GameResult struct {
 	State State
 	Score float64
+}
+
+type TurnRequest struct {
+	Depth int
 }
 
 type TurnResult struct {
@@ -224,7 +240,7 @@ func (a Action) GetNVisited() int {
 
 func New() *StateTree {
 	return &StateTree{
-		debugState: func(state State, debug Debug) {
+		debugState: func(n NodeDebug, debug Debug) {
 			// default
 		},
 		debugActions: func(actions []*Action, selected *Action) {
