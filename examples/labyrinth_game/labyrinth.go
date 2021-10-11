@@ -62,7 +62,7 @@ func (g *game) ID() string {
 	return fmt.Sprintf("%v-%v", g.PlaceMap, g.HasKey)
 }
 
-func (g *game) PossibleActions() []interface{} {
+func (g *game) PossibleActions() []string {
 	j, i := findPlace(g.PlaceMap, "P")
 
 	up := g.PlaceMap[j-1][i]
@@ -70,7 +70,7 @@ func (g *game) PossibleActions() []interface{} {
 	left := g.PlaceMap[j][i-1]
 	right := g.PlaceMap[j][i+1]
 
-	actions := make([]interface{}, 0)
+	actions := make([]string, 0)
 
 	if up == " " {
 		actions = append(actions, "move_up")
@@ -98,9 +98,9 @@ func (g *game) PossibleActions() []interface{} {
 	return actions
 }
 
-func (g *game) PlayAction(action interface{}) {
+func (g *game) PlayAction(action string) {
 	j, i := findPlace(g.PlaceMap, "P")
-	switch action.(string) {
+	switch action {
 	case "move_up":
 		g.PlaceMap[j][i] = " "
 		g.PlaceMap[j-1][i] = "P"
@@ -190,8 +190,8 @@ func (g *game) Copy() tree.State {
 	return gCopy
 }
 
-func newGame() game {
-	return game{
+func newGame() *game {
+	return &game{
 		PlaceMap:  labyrinthMap(),
 		PlayerMap: playerMap(),
 		MaxMoves:  25,

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	tree "github.com/danielsussa/tmp_tree"
 	"math/rand"
+	"sort"
 )
 
 type g2048 struct {
@@ -39,12 +40,12 @@ func (g g2048) Copy() tree.State {
 	}
 }
 
-func (g g2048) PossibleActions() []interface{} {
+func (g g2048) PossibleActions() []string {
 	iterations := getAllIterations(g.board)
 	return iterations
 }
 
-func getAllIterations(board [][]int) []interface{} {
+func getAllIterations(board [][]int) []string {
 	down := 0
 	up := 0
 	left := 0
@@ -72,7 +73,7 @@ func getAllIterations(board [][]int) []interface{} {
 		}
 	}
 
-	iters := make([]interface{}, 0)
+	iters := make([]string, 0)
 	if up == 1 {
 		iters = append(iters, "U")
 	}
@@ -194,19 +195,48 @@ func print2048(board [][]int, score int) {
 	fmt.Println()
 }
 
-func (g g2048) ID() string {
-	return fmt.Sprintf("%v", g.board)
+func convertScalar(board [][]int) [][]int {
+	mapConverter := make(map[int]int, 0)
+	for i := range board {
+		for _, v := range board[i] {
+			mapConverter[v] = 0
+		}
+	}
+	keys := make([]int, 0)
+	for k := range mapConverter {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	i := 0
+	for _, k := range keys {
+		mapConverter[k] = i
+		i++
+	}
+
+	newBoard := newArr()
+	for i := range newBoard {
+		for j, _ := range newBoard[i] {
+			newBoard[i][j] = mapConverter[board[i][j]]
+		}
+	}
+
+	return newBoard
 }
 
-func (g *g2048) PlayAction(i interface{}) {
+func (g g2048) ID() string {
+	return fmt.Sprintf("%v", convertScalar(g.board))
+}
+
+func (g *g2048) PlayAction(i string) {
 	score := 0
-	if i.(string) == "D" {
+	if i == "D" {
 		score += computeDown(g.board)
-	} else if i.(string) == "U" {
+	} else if i == "U" {
 		score += computeUp(g.board)
-	} else if i.(string) == "R" {
+	} else if i == "R" {
 		score += computeRight(g.board)
-	} else if i.(string) == "L" {
+	} else if i == "L" {
 		score += computeLeft(g.board)
 	}
 	g.score += score

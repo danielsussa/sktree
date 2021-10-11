@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Database interface {
@@ -63,7 +64,7 @@ type NodeDebug struct {
 }
 
 type Action struct {
-	ID       interface{}
+	ID       string
 	Score    int
 	NVisited int
 }
@@ -108,6 +109,7 @@ type Debug string
 const (
 	Bootstrap    Debug = "bootstrap"
 	CurrentState Debug = "current_action"
+	Expand       Debug = "expand"
 )
 
 func parseToNode(key, val string) *Node {
@@ -131,11 +133,14 @@ func parseToNode(key, val string) *Node {
 	}
 }
 
-func (st *StateTree) newNode(state State, nodeMap map[string]*Node) (*Node, bool) {
+func (st *StateTree) getOrCreateNode(state State, nodeMap map[string]*Node) (*Node, bool) {
 	stateId := state.ID()
-	if val, ok := nodeMap[stateId]; ok {
-		return val, false
+	if nodeMap != nil {
+		if val, ok := nodeMap[stateId]; ok {
+			return val, false
+		}
 	}
+
 	if val, ok := st.db.Find(stateId); ok {
 		node := parseToNode(stateId, val)
 		node.id = stateId
@@ -186,10 +191,40 @@ type ControllerRequest struct {
 
 type ControllerResponse struct {
 	Restart bool
+	Expand  bool
 }
 
 func (st *StateTree) Controller(f func(req ControllerRequest) ControllerResponse) {
 	st.controller = f
+}
+
+//func (st *StateTree) SingleSimulation(s State) {
+//	for {
+//		root := s.Copy()
+//	}
+//}
+
+type StateTreeConfig struct {
+	MaxTimeout    *time.Duration
+	MaxIterations int
+}
+
+func (st *StateTree) PlayTurn(state State) bool {
+
+	node, _ := st.getOrCreateNode(state, nil)
+
+	currentAction := node.selectAction(st.stats)
+
+	state.PlayAction(currentAction.ID)
+
+	result := state.TurnResult(TurnRequest{Depth: 0})
+	return result.EndGame
+}
+
+func (st *StateTree) Train(s State, config StateTreeConfig) {
+	for i := 0; i < config.MaxIterations; i++ {
+		st.playGame(s)
+	}
 }
 
 func (st *StateTree) PlayGame(s State) {
@@ -209,12 +244,11 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 
 	depth := 0
 	for {
-		node, newNode := st.newNode(state, nodeMap)
+		node, newNode := st.getOrCreateNode(state, nodeMap)
 		if newNode {
 			depth++
 		}
 		currentAction := node.selectAction(st.stats)
-		st.debugActions(node.Actions, currentAction)
 
 		state.PlayAction(currentAction.ID)
 		state.PlaySideEffects()
@@ -222,6 +256,7 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		result := state.TurnResult(TurnRequest{Depth: depth})
 
 		// new node
+		st.debugActions(node.Actions, currentAction)
 		st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
 
 		actionList = append(actionList, currentAction)
@@ -250,9 +285,9 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 
 type State interface {
 	ID() string
-	PossibleActions() []interface{}
+	PossibleActions() []string
 	Copy() State
-	PlayAction(interface{})
+	PlayAction(string)
 	PlaySideEffects()
 	TurnResult(TurnRequest) TurnResult
 	GameResult() GameResult

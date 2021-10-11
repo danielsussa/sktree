@@ -3,12 +3,13 @@ package g2048
 import (
 	tree "github.com/danielsussa/tmp_tree"
 	"github.com/danielsussa/tmp_tree/examples/defaultdb"
+	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 // du -hs g2048
 func TestTrain2048(t *testing.T) {
-	defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/total64/dataset/game2048")
+	defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/Seagate Expansion Drive/dataset/game2048_mod")
 
 	stateTree := tree.New().SetDB(defaultDb)
 	stateTree.DebugState(func(node tree.NodeDebug, debug tree.Debug) {
@@ -36,4 +37,67 @@ func TestTrain2048(t *testing.T) {
 	})
 
 	stateTree.PlayGame(startNewGame())
+}
+
+func TestMapConverter(t *testing.T) {
+	{
+		board := [][]int{
+			{0, 0, 0, 4},
+			{0, 0, 0, 32},
+			{0, 0, 0, 64},
+			{0, 0, 0, 64},
+		}
+		expected := [][]int{
+			{0, 0, 0, 1},
+			{0, 0, 0, 2},
+			{0, 0, 0, 3},
+			{0, 0, 0, 3},
+		}
+		assert.Equal(t, expected, convertScalar(board))
+	}
+	{
+		board := [][]int{
+			{0, 0, 0, 0},
+			{2, 0, 0, 0},
+			{0, 0, 0, 0},
+			{4, 8, 128, 128},
+		}
+		expected := [][]int{
+			{0, 0, 0, 0},
+			{1, 0, 0, 0},
+			{0, 0, 0, 0},
+			{2, 3, 4, 4},
+		}
+		assert.Equal(t, expected, convertScalar(board))
+	}
+	{
+		board := [][]int{
+			{0, 0, 0, 0},
+			{2, 0, 0, 0},
+			{0, 0, 0, 0},
+			{8, 16, 128, 128},
+		}
+		expected := [][]int{
+			{0, 0, 0, 0},
+			{1, 0, 0, 0},
+			{0, 0, 0, 0},
+			{2, 3, 4, 4},
+		}
+		assert.Equal(t, expected, convertScalar(board))
+	}
+	{
+		board := [][]int{
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+		}
+		expected := [][]int{
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+			{0, 0, 0, 0},
+		}
+		assert.Equal(t, expected, convertScalar(board))
+	}
 }

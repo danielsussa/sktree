@@ -44,6 +44,21 @@ func TestLabyrinth(t *testing.T) {
 		return tree.ControllerResponse{Restart: true}
 	})
 
-	treeGame.PlayGame(&labGame)
+	treeGame.PlayGame(labGame)
+}
 
+func TestLabyrinthWithTrain(t *testing.T) {
+	game := newGame()
+	stateTree := tree.New()
+	for {
+		stateTree.Train(game, tree.StateTreeConfig{
+			MaxIterations: 100,
+		})
+		endGame := stateTree.PlayTurn(game)
+		if endGame {
+			break
+		}
+		game.Print()
+	}
+	game.Print()
 }
