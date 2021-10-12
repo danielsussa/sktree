@@ -280,6 +280,22 @@ func TestComputeMoves(t *testing.T) {
 		assert.Equal(t, 24, computeRight(board))
 		assert.Equal(t, expected, board)
 	}
+	{
+		board := []int{
+			4, 8, 16, 4,
+			16, 4, 8, 16,
+			4, 16, 4, 8,
+			2, 2, 2, 2,
+		}
+		expected := []int{
+			4, 8, 16, 4,
+			16, 4, 8, 16,
+			4, 16, 4, 8,
+			2, 2, 2, 2,
+		}
+		assert.Equal(t, 0, computeDown(board))
+		assert.Equal(t, expected, board)
+	}
 }
 
 func TestMerge(t *testing.T) {

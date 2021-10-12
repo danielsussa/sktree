@@ -74,8 +74,8 @@ func convertScalar(board []int) []int {
 }
 
 func (g g2048) ID() string {
-	return fmt.Sprintf("%v", convertScalar(g.board))
-	//return fmt.Sprintf("%v", g.board)
+	//return fmt.Sprintf("%v", convertScalar(g.board))
+	return fmt.Sprintf("%v", g.board)
 }
 
 func (g *g2048) PlayAction(i string) {
