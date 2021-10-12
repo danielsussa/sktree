@@ -1,17 +1,18 @@
 package g2048
 
 import (
+	"fmt"
 	tree "github.com/danielsussa/tmp_tree"
 	"github.com/danielsussa/tmp_tree/examples/defaultdb"
-	"github.com/stretchr/testify/assert"
+	"math/rand"
 	"testing"
 )
 
-// du -hs g2048
 func TestTrain2048(t *testing.T) {
-	defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/Seagate Expansion Drive/dataset/game2048_mod")
+	defaultDb := defaultdb.NewBadgerDB("/media/kanczuk/146D-1AFD/dataset2/game2048")
 
 	stateTree := tree.New().SetDB(defaultDb)
+	fmt.Println("starting")
 	stateTree.DebugState(func(node tree.NodeDebug, debug tree.Debug) {
 		//game := node.State.(g2048)
 		//print2048(game.board, game.score)
@@ -39,65 +40,35 @@ func TestTrain2048(t *testing.T) {
 	stateTree.PlayGame(startNewGame())
 }
 
-func TestMapConverter(t *testing.T) {
-	{
-		board := [][]int{
-			{0, 0, 0, 4},
-			{0, 0, 0, 32},
-			{0, 0, 0, 64},
-			{0, 0, 0, 64},
+// /media/kanczuk/146D-1AFD/dataset/game2048
+// /home/kanczuk/.tmp/game2048
+func TestPlay2048(t *testing.T) {
+	//defaultDb := defaultdb.NewBadgerDB("/media/kanczuk/146D-1AFD/dataset/badger/game2048")
+	defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/146D-1AFD/dataset/disk/game2048")
+
+	rand.Seed(1)
+	game := startNewGame()
+
+	print2048(game.board, game.score)
+	stateTree := tree.New()
+	stateTree.SetDB(defaultDb)
+	for {
+		stateTree.Train(game, tree.StateTreeConfig{
+			MaxIterations: 10000,
+		})
+
+		endGame := stateTree.PlayTurn(game)
+		if endGame {
+			break
 		}
-		expected := [][]int{
-			{0, 0, 0, 1},
-			{0, 0, 0, 2},
-			{0, 0, 0, 3},
-			{0, 0, 0, 3},
+
+		game.PlaySideEffects()
+
+		if len(game.PossibleActions()) == 0 {
+			break
 		}
-		assert.Equal(t, expected, convertScalar(board))
+
+		print2048(game.board, game.score)
 	}
-	{
-		board := [][]int{
-			{0, 0, 0, 0},
-			{2, 0, 0, 0},
-			{0, 0, 0, 0},
-			{4, 8, 128, 128},
-		}
-		expected := [][]int{
-			{0, 0, 0, 0},
-			{1, 0, 0, 0},
-			{0, 0, 0, 0},
-			{2, 3, 4, 4},
-		}
-		assert.Equal(t, expected, convertScalar(board))
-	}
-	{
-		board := [][]int{
-			{0, 0, 0, 0},
-			{2, 0, 0, 0},
-			{0, 0, 0, 0},
-			{8, 16, 128, 128},
-		}
-		expected := [][]int{
-			{0, 0, 0, 0},
-			{1, 0, 0, 0},
-			{0, 0, 0, 0},
-			{2, 3, 4, 4},
-		}
-		assert.Equal(t, expected, convertScalar(board))
-	}
-	{
-		board := [][]int{
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-		}
-		expected := [][]int{
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-			{0, 0, 0, 0},
-		}
-		assert.Equal(t, expected, convertScalar(board))
-	}
+	print2048(game.board, game.score)
 }
