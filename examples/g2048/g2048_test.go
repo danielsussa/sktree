@@ -13,14 +13,14 @@ func TestTrain2048(t *testing.T) {
 	stateTree := tree.New()
 	fmt.Println("starting")
 	stateTree.DebugState(func(node tree.NodeDebug, debug tree.Debug) {
-		//game := node.State.(g2048)
+		//game := node.State.(*g2048)
 		//print2048(game.board, game.score)
 	})
 
 	stateTree.DebugAction(func(actions []*tree.Action, selected *tree.Action) {
 		//actList := make([]string, 0)
 		//for _, act := range actions {
-		//	actList = append(actList, act.ID.(string))
+		//	actList = append(actList, act.ID)
 		//}
 		//fmt.Println(fmt.Sprintf("[%d]actions: %v", selected.GetNVisited(), selected.ID))
 	})

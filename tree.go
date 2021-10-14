@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"math/rand"
 	"sort"
 	"strconv"
 	"strings"
@@ -155,6 +156,10 @@ func (st *StateTree) getOrCreateNode(state State, nodeMap map[string]*Node) (*No
 		})
 	}
 
+	rand.Shuffle(len(actionList), func(i, j int) {
+		actionList[i], actionList[j] = actionList[j], actionList[i]
+	})
+
 	node := &Node{
 		Actions: actionList,
 		id:      stateId,
@@ -245,9 +250,6 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 	depth := 0
 	for {
 		node, newNode := st.getOrCreateNode(state, nodeMap)
-		if newNode {
-			depth++
-		}
 		currentAction := node.selectAction(st.stats)
 
 		state.PlayAction(currentAction.ID)
@@ -268,6 +270,9 @@ func (st *StateTree) playGame(s State) ControllerRequest {
 		nodeMap[node.id] = node
 		if result.EndGame {
 			break
+		}
+		if newNode {
+			depth++
 		}
 	}
 	gameResult := state.GameResult()

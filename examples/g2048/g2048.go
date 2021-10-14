@@ -8,8 +8,9 @@ import (
 )
 
 type g2048 struct {
-	board []int
-	score int
+	board      []int
+	turnsCount int
+	score      int
 }
 
 func (g g2048) Copy() tree.State {
@@ -90,6 +91,7 @@ func (g *g2048) PlayAction(i string) {
 		score += computeLeft(g.board)
 	}
 	g.score += score
+	g.turnsCount++
 }
 
 func canMoveUp(board []int) bool {
@@ -194,14 +196,15 @@ func (g g2048) PlaySideEffects() {
 
 func (g g2048) TurnResult(r tree.TurnRequest) tree.TurnResult {
 	iters := len(g.PossibleActions())
+	depth := r.Depth
 	return tree.TurnResult{
-		EndGame: iters == 0,
+		EndGame: iters == 0 || depth >= 5,
 	}
 }
 
 func (g g2048) GameResult() tree.GameResult {
 	return tree.GameResult{
-		Score: g.score,
+		Score: g.turnsCount,
 	}
 }
 
