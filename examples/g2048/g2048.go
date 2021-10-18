@@ -202,10 +202,57 @@ func (g g2048) TurnResult(r tree.TurnRequest) tree.TurnResult {
 	}
 }
 
-func (g g2048) GameResult() tree.GameResult {
+func (g g2048) simpleScore() tree.GameResult {
 	return tree.GameResult{
-		Score: g.turnsCount,
+		Score: g.score,
 	}
+}
+
+func (g g2048) freePlacesAndActions() tree.GameResult {
+	return tree.GameResult{
+		Score: len(getFreePlaces(g.board)) + len(g.PossibleActions()),
+	}
+}
+
+func (g g2048) topFirst() int {
+	mapConverter := make(map[int]int, 0)
+	for _, val := range g.board {
+		mapConverter[val] = 0
+	}
+	keys := make([]int, 0)
+	for k := range mapConverter {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+	return keys[len(keys)-1]
+}
+
+func (g g2048) top3Score() tree.GameResult {
+	mapConverter := make(map[int]int, 0)
+	for _, val := range g.board {
+		mapConverter[val] = 0
+	}
+	keys := make([]int, 0)
+	for k := range mapConverter {
+		keys = append(keys, k)
+	}
+	sort.Ints(keys)
+
+	total := 0
+	for i := 0; i < len(keys); i++ {
+		total += keys[i]
+	}
+	return tree.GameResult{
+		Score: total,
+	}
+}
+
+func (g g2048) GameResult() tree.GameResult {
+	//freePlace := len(getFreePlaces(g.board))
+	//possibles :=  len(g.PossibleActions())
+	return tree.GameResult{Score: g.topFirst()}
+	//return g.freePlacesAndActions()
+	//return g.simpleScore()
 }
 
 func getFreePlaces(board []int) []int {
@@ -270,7 +317,6 @@ func merge(c []int) int {
 				c[i] = iterV
 				c[j] = 0
 				val = iterV
-				//break
 			}
 		}
 	}

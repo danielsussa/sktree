@@ -39,22 +39,57 @@ func TestTrain2048(t *testing.T) {
 	stateTree.PlayGame(startNewGame())
 }
 
+func Test2048First(t *testing.T) {
+	rand.Seed(1)
+	game := startNewGame()
+	game.board = []int{
+		0, 0, 0, 0,
+		0, 0, 2, 0,
+		0, 0, 0, 0,
+		16, 32, 64, 128,
+	}
+	print2048(game.board, game.score)
+	totalPlays := 0
+	for i := 0; i < 15; i++ {
+		stateTree := tree.New()
+		stateTree.Train(game, tree.StateTreeConfig{
+			MaxIterations: 30000,
+		})
+
+		endGame := stateTree.PlayTurn(game)
+		if endGame {
+			break
+		}
+
+		game.PlaySideEffects()
+
+		if game.topFirst() == 256 {
+			break
+		}
+
+		print2048(game.board, game.score)
+		totalPlays++
+	}
+	print2048(game.board, game.score)
+	fmt.Println(totalPlays)
+}
+
 // /media/kanczuk/146D-1AFD/dataset/game2048
 // /home/kanczuk/.tmp/game2048
 func TestPlay2048(t *testing.T) {
 	//defaultDb := defaultdb.NewBadgerDB("/media/kanczuk/146D-1AFD/dataset/badger/game2048")
-	//defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/146D-1AFD/dataset/disk/game2048")
+	//defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/mydataset/game2048")
 	//defaultDb := defaultdb.NewSqlDB("/media/kanczuk/datasetntfs/data/data.db")
 
 	rand.Seed(1)
 	game := startNewGame()
 
 	print2048(game.board, game.score)
-	stateTree := tree.New()
 	//stateTree.SetDB(defaultDb)
 	for {
+		stateTree := tree.New()
 		stateTree.Train(game, tree.StateTreeConfig{
-			MaxIterations: 10000,
+			MaxIterations: 2048,
 		})
 
 		endGame := stateTree.PlayTurn(game)
