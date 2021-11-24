@@ -23,7 +23,7 @@ func TestFirstSecondMoveMove(t *testing.T) {
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxIterations: 5000,
+		MaxDepth: 10,
 	})
 	stateTree.PlayTurn(game)
 
@@ -47,7 +47,7 @@ func TestBestSecondMoveMove(t *testing.T) {
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxIterations: 1000,
+		MaxDepth: 10,
 	})
 	stateTree.PlayTurn(game)
 
@@ -71,7 +71,7 @@ func TestDontLoseMoveMove(t *testing.T) {
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxIterations: 1000,
+		MaxDepth: 10,
 	})
 	stateTree.PlayTurn(game)
 

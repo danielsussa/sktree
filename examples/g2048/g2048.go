@@ -194,13 +194,6 @@ func (g g2048) PlaySideEffects() {
 	addNumberOnBoard(g.board)
 }
 
-func (g g2048) TurnResult(r tree.TurnRequest) tree.TurnResult {
-	iters := len(g.PossibleActions())
-	depth := r.Depth
-	return tree.TurnResult{
-		EndGame: iters == 0 || depth >= 5,
-	}
-}
 
 func (g g2048) simpleScore() tree.GameResult {
 	return tree.GameResult{
@@ -250,9 +243,9 @@ func (g g2048) top3Score() tree.GameResult {
 func (g g2048) GameResult() tree.GameResult {
 	//freePlace := len(getFreePlaces(g.board))
 	//possibles :=  len(g.PossibleActions())
-	return tree.GameResult{Score: g.topFirst()}
+	//return tree.GameResult{Score: g.topFirst()}
 	//return g.freePlacesAndActions()
-	//return g.simpleScore()
+	return g.simpleScore()
 }
 
 func getFreePlaces(board []int) []int {

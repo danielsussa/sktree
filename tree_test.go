@@ -16,6 +16,6 @@ func TestMCTS(t *testing.T) {
 }
 
 func TestMCT2(t *testing.T) {
-	fmt.Println(fSelection(0.0, 997440, 1500000))
-	fmt.Println(fSelection(0.0, 997440, 1500000))
+	fmt.Println(fSelection(0.0, 5, 1))
+	fmt.Println(fSelection(0.0, 10, 1))
 }

@@ -10,7 +10,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"time"
 )
 
 type Database interface {
@@ -39,7 +38,8 @@ type StateTree struct {
 	debugActions func(actions []*Action, selected *Action)
 	controller   func(req ControllerRequest) ControllerResponse
 	stats        *rootStats
-	db           Database
+				// [depth] -> [id]
+	nodeMap map[string]*Node
 }
 
 type rootStats struct {
@@ -79,6 +79,9 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 	actionScoreList := make([]actionScore, 0)
 
 	for _, action := range n.Actions {
+		if action.NVisited == 0 {
+			return action
+		}
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
 			score:  fSelection(float64(action.Score), action.NVisited, stats.NVisited),
@@ -93,7 +96,10 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 			return actionScoreList[i].action.NVisited < actionScoreList[j].action.NVisited
 		}
 	})
-	//n.selected = actionScoreList[0].action
+	if len(actionScoreList) == 0 {
+		return nil
+	}
+
 	return actionScoreList[0].action
 }
 
@@ -134,18 +140,11 @@ func parseToNode(key, val string) *Node {
 	}
 }
 
-func (st *StateTree) getOrCreateNode(state State, nodeMap map[string]*Node) (*Node, bool) {
+func (st *StateTree) getOrCreateNode(state State) (*Node, bool) {
 	stateId := state.ID()
-	if nodeMap != nil {
-		if val, ok := nodeMap[stateId]; ok {
-			return val, false
-		}
-	}
 
-	if val, ok := st.db.Find(stateId); ok {
-		node := parseToNode(stateId, val)
-		node.id = stateId
-		return node, false
+	if val, ok := st.nodeMap[stateId]; ok {
+		return val, false
 	}
 
 	actionList := make([]*Action, 0)
@@ -177,11 +176,6 @@ func newSHA512(data []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (st *StateTree) SetDB(db Database) *StateTree {
-	st.db = db
-	return st
-}
-
 func (st *StateTree) DebugState(f func(n NodeDebug, debug Debug)) {
 	st.debugState = f
 }
@@ -209,84 +203,106 @@ func (st *StateTree) Controller(f func(req ControllerRequest) ControllerResponse
 //	}
 //}
 
-type StateTreeConfig struct {
-	MaxTimeout    *time.Duration
-	MaxIterations int
+
+type PlayTurnResult struct {
+	EndGame bool
+	Action  *Action
 }
 
-func (st *StateTree) PlayTurn(state State) bool {
+func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 
-	node, _ := st.getOrCreateNode(state, nil)
+	node, _ := st.getOrCreateNode(state)
 
 	currentAction := node.selectAction(st.stats)
+	
+	if currentAction == nil {
+		return PlayTurnResult{}
+	}
 
 	state.PlayAction(currentAction.ID)
 
-	result := state.TurnResult(TurnRequest{Depth: 0})
-	return result.EndGame
-}
-
-func (st *StateTree) Train(s State, config StateTreeConfig) {
-	for i := 0; i < config.MaxIterations; i++ {
-		st.playGame(s)
+	return PlayTurnResult{
+		EndGame: false,
+		Action:  currentAction,
 	}
 }
 
-func (st *StateTree) PlayGame(s State) {
+func (st *StateTree) flush() {
+	st.nodeMap = make(map[string]*Node, 0)
+	st.stats = &rootStats{NVisited: 0}
+}
+
+type StateTreeConfig struct {
+	MaxDepth   int
+}
+
+type TrainResult struct {
+	TotalNewNodes int
+}
+
+func (st *StateTree) Train(s State, config StateTreeConfig) TrainResult{
+	st.flush()
+	return st.train(s, config)
+}
+
+func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
+	achieveEndOfGame := 0
+	newNodes := 0
+
 	for {
-		res := st.controller(st.playGame(s))
-		if !res.Restart {
-			break
+		state := s.Copy()
+		actionMap := make(map[string]*Action, 0)
+		depth := 0
+
+		// game loop
+		for {
+			node, newNode := st.getOrCreateNode(state)
+
+			currentAction := node.selectAction(st.stats)
+
+			if currentAction == nil {
+				achieveEndOfGame++
+				break
+			}
+
+			state.PlayAction(currentAction.ID)
+			state.PlaySideEffects()
+
+
+			// new node
+			st.debugActions(node.Actions, currentAction)
+			st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
+
+			actionMap[state.ID()] = currentAction
+			st.nodeMap[node.id] = node
+
+			depth++
+			if newNode {
+				break
+			}
+			//if depth > config.MaxDepth {
+			//	break
+			//}
+
 		}
-	}
-}
 
-func (st *StateTree) playGame(s State) ControllerRequest {
-	state := s.Copy()
-
-	nodeMap := make(map[string]*Node, 0)
-	actionList := make([]*Action, 0)
-
-	depth := 0
-	for {
-		node, newNode := st.getOrCreateNode(state, nodeMap)
-		currentAction := node.selectAction(st.stats)
-
-		state.PlayAction(currentAction.ID)
-		state.PlaySideEffects()
-
-		result := state.TurnResult(TurnRequest{Depth: depth})
-
-		// new node
-		st.debugActions(node.Actions, currentAction)
-		st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
-
-		actionList = append(actionList, currentAction)
-
-		for _, action := range actionList {
+		st.stats.NVisited++
+		gameResult := state.GameResult()
+		for _, action := range actionMap {
+			action.Score += gameResult.Score
 			action.NVisited++
 		}
-		st.stats.NVisited++
-		nodeMap[node.id] = node
-		if result.EndGame {
+
+		if depth > config.MaxDepth || achieveEndOfGame > 10 {
 			break
 		}
-		if newNode {
-			depth++
-		}
-	}
-	gameResult := state.GameResult()
-	for _, action := range actionList {
-		action.Score += gameResult.Score
-	}
-	for key, val := range nodeMap {
-		_ = st.db.Add(key, val.toDB())
 	}
 
-	return ControllerRequest{
-		State: state,
+	return TrainResult{
+		TotalNewNodes: newNodes,
 	}
 }
+
 
 type State interface {
 	ID() string
@@ -294,7 +310,7 @@ type State interface {
 	Copy() State
 	PlayAction(string)
 	PlaySideEffects()
-	TurnResult(TurnRequest) TurnResult
+	//TurnResult(TurnRequest) TurnResult
 	GameResult() GameResult
 }
 
@@ -325,7 +341,6 @@ func New() *StateTree {
 		controller: func(req ControllerRequest) ControllerResponse {
 			return ControllerResponse{}
 		},
-		db:    DefaultMemoryDB{nodeMap: map[string]string{}},
 		stats: &rootStats{NVisited: 0},
 	}
 }

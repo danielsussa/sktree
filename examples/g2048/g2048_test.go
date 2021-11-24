@@ -3,67 +3,37 @@ package g2048
 import (
 	"fmt"
 	tree "github.com/danielsussa/tmp_tree"
+	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
 )
 
-func TestTrain2048(t *testing.T) {
-	//defaultDb := defaultdb.NewBadgerDB("/media/kanczuk/146D-1AFD/dataset2/game2048")
-
-	stateTree := tree.New()
-	fmt.Println("starting")
-	stateTree.DebugState(func(node tree.NodeDebug, debug tree.Debug) {
-		//game := node.State.(*g2048)
-		//print2048(game.board, game.score)
-	})
-
-	stateTree.DebugAction(func(actions []*tree.Action, selected *tree.Action) {
-		//actList := make([]string, 0)
-		//for _, act := range actions {
-		//	actList = append(actList, act.ID)
-		//}
-		//fmt.Println(fmt.Sprintf("[%d]actions: %v", selected.GetNVisited(), selected.ID))
-	})
-
-	maxScore := 0
-
-	stateTree.Controller(func(req tree.ControllerRequest) tree.ControllerResponse {
-		game := req.State.(*g2048)
-		if game.score > maxScore {
-			maxScore = game.score
-			print2048(game.board, maxScore)
-		}
-		return tree.ControllerResponse{Restart: true}
-	})
-
-	stateTree.PlayGame(startNewGame())
-}
-
 func Test2048First(t *testing.T) {
-	rand.Seed(1)
+	rand.Seed(3)
 	game := startNewGame()
 	game.board = []int{
+		0, 2, 0, 0,
 		0, 0, 0, 0,
-		0, 0, 2, 0,
-		0, 0, 0, 0,
-		16, 32, 64, 128,
+		2, 4, 0, 0,
+		64, 128, 256, 0,
 	}
 	print2048(game.board, game.score)
 	totalPlays := 0
-	for i := 0; i < 15; i++ {
-		stateTree := tree.New()
-		stateTree.Train(game, tree.StateTreeConfig{
-			MaxIterations: 30000,
+	stateTree := tree.New()
+	for i := 0; i < 30; i++ {
+		res := stateTree.Train(game, tree.StateTreeConfig{
+			MaxDepth: 20,
 		})
+		fmt.Println("new nodes: ", res.TotalNewNodes)
 
-		endGame := stateTree.PlayTurn(game)
-		if endGame {
+		result := stateTree.PlayTurn(game)
+		if result.EndGame {
 			break
 		}
 
 		game.PlaySideEffects()
 
-		if game.topFirst() == 256 {
+		if game.topFirst() == 512 {
 			break
 		}
 
@@ -72,6 +42,46 @@ func Test2048First(t *testing.T) {
 	}
 	print2048(game.board, game.score)
 	fmt.Println(totalPlays)
+}
+
+func Test2048BestResult(t *testing.T) {
+	rand.Seed(3)
+	game := startNewGame()
+	game.board = []int{
+		0, 2, 0, 0,
+		0, 16, 0, 0,
+		16, 0, 0, 0,
+		32, 64, 128, 256,
+	}
+
+	stateTree := tree.New()
+	res := stateTree.Train(game, tree.StateTreeConfig{
+		MaxDepth: 10,
+	})
+	fmt.Println("new nodes: ", res.TotalNewNodes)
+
+	result := stateTree.PlayTurn(game)
+	assert.Equal(t, result.Action.ID, "L")
+}
+
+func Test2048GoToRight(t *testing.T) {
+	rand.Seed(3)
+	game := startNewGame()
+	game.board = []int{
+		0, 2, 0, 0,
+		0, 0, 0, 0,
+		0, 0, 0, 0,
+		64, 128, 256, 0,
+	}
+
+	stateTree := tree.New()
+	res := stateTree.Train(game, tree.StateTreeConfig{
+		MaxDepth: 30,
+	})
+	fmt.Println("new nodes: ", res.TotalNewNodes)
+
+	result := stateTree.PlayTurn(game)
+	assert.Equal(t, result.Action.ID, "R")
 }
 
 // /media/kanczuk/146D-1AFD/dataset/game2048
@@ -89,11 +99,11 @@ func TestPlay2048(t *testing.T) {
 	for {
 		stateTree := tree.New()
 		stateTree.Train(game, tree.StateTreeConfig{
-			MaxIterations: 2048,
+			MaxDepth:   15,
 		})
 
-		endGame := stateTree.PlayTurn(game)
-		if endGame {
+		result := stateTree.PlayTurn(game)
+		if result.EndGame {
 			break
 		}
 
