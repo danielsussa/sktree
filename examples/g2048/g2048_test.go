@@ -2,7 +2,7 @@ package g2048
 
 import (
 	"fmt"
-	tree "github.com/danielsussa/tmp_tree"
+	tree "github.com/danielsussa/sktree"
 	"github.com/stretchr/testify/assert"
 	"math/rand"
 	"testing"
@@ -61,7 +61,7 @@ func Test2048BestResult(t *testing.T) {
 	fmt.Println("new nodes: ", res.TotalNewNodes)
 
 	result := stateTree.PlayTurn(game)
-	assert.Equal(t, result.Action.ID, "L")
+	assert.Equal(t, result.Action.ID, "D")
 }
 
 func Test2048GoToRight(t *testing.T) {

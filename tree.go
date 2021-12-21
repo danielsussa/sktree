@@ -236,13 +236,14 @@ func (st *StateTree) Train(s State, config StateTreeConfig) TrainResult{
 }
 
 func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
-	achieveEndOfGame := 0
+	totalGamesWithoutNewNode := 0
 	newNodes := 0
 
 	for {
 		state := s.Copy()
 		actionMap := make(map[string]*Action, 0)
 		depth := 0
+		gameWithNewNode := false
 
 		// game loop
 		for {
@@ -251,10 +252,8 @@ func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
 			currentAction := node.selectAction(st.stats)
 
 			if currentAction == nil {
-				achieveEndOfGame++
 				break
 			}
-			achieveEndOfGame = 0
 
 			state.PlayAction(currentAction.ID)
 			state.PlaySideEffects()
@@ -266,12 +265,17 @@ func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
 
 			depth++
 			if newNode {
+				gameWithNewNode = true
 				break
 			}
 			//if depth > config.MaxDepth {
 			//	break
 			//}
 
+		}
+
+		if !gameWithNewNode {
+			totalGamesWithoutNewNode++
 		}
 
 		st.stats.NVisited++
@@ -286,7 +290,7 @@ func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
 			break
 		}
 
-		if depth > config.MaxDepth || achieveEndOfGame > 50 {
+		if depth > config.MaxDepth || totalGamesWithoutNewNode > 10 {
 			break
 		}
 	}

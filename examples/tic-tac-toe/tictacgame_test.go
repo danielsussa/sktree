@@ -1,7 +1,7 @@
 package tictactoe
 
 import (
-	tree "github.com/danielsussa/tmp_tree"
+	tree "github.com/danielsussa/sktree"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )

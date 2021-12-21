@@ -1,7 +1,7 @@
 package labyrinth
 
 import (
-	tree "github.com/danielsussa/tmp_tree"
+	tree "github.com/danielsussa/sktree"
 	"testing"
 )
 

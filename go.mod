@@ -1,4 +1,4 @@
-module github.com/danielsussa/tmp_tree
+module github.com/danielsussa/sktree
 
 go 1.16
 

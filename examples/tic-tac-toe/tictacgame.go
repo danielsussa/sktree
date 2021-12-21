@@ -2,7 +2,7 @@ package tictactoe
 
 import (
 	"fmt"
-	tree "github.com/danielsussa/tmp_tree"
+	tree "github.com/danielsussa/sktree"
 	"math/rand"
 	"strconv"
 )
