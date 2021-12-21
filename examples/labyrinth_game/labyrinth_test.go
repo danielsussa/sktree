@@ -9,9 +9,16 @@ import (
 func TestLabyrinthWithTrain(t *testing.T) {
 	game := newGame()
 	stateTree := tree.New()
+	stateTree.Controller(func(req tree.ControllerRequest) tree.ControllerResponse {
+		game := req.State.(*labyrinth)
+
+		return tree.ControllerResponse{
+			ForceStop: game.WinGame,
+		}
+	})
 	for {
 		stateTree.Train(game, tree.StateTreeConfig{
-			MaxDepth: 50,
+			MaxDepth: 500,
 		})
 		res := stateTree.PlayTurn(game)
 		if res.EndGame {

@@ -22,7 +22,7 @@ func Test2048First(t *testing.T) {
 	stateTree := tree.New()
 	for i := 0; i < 30; i++ {
 		res := stateTree.Train(game, tree.StateTreeConfig{
-			MaxDepth: 20,
+			MaxDepth: 10,
 		})
 		fmt.Println("new nodes: ", res.TotalNewNodes)
 

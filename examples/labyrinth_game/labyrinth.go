@@ -47,7 +47,7 @@ func findPlace(labMap [][]string, p string) (j, i int) {
 	panic("error cannot find start place")
 }
 
-type game struct {
+type labyrinth struct {
 	PlaceMap  [][]string
 	PlayerMap [][]string
 	HasKey    bool
@@ -58,11 +58,14 @@ type game struct {
 	WinGame    bool
 }
 
-func (g *game) ID() string {
-	return fmt.Sprintf("%v-%v", g.PlaceMap, g.HasKey)
+func (g *labyrinth) ID() string {
+	return fmt.Sprintf("%v-%v-%d", g.PlaceMap, g.HasKey, g.TotalMoves)
 }
 
-func (g *game) PossibleActions() []string {
+func (g *labyrinth) PossibleActions() []string {
+	if g.TotalMoves > g.MaxMoves {
+		return nil
+	}
 	j, i := findPlace(g.PlaceMap, "P")
 
 	up := g.PlaceMap[j-1][i]
@@ -98,7 +101,7 @@ func (g *game) PossibleActions() []string {
 	return actions
 }
 
-func (g *game) PlayAction(action string) {
+func (g *labyrinth) PlayAction(action string) {
 	j, i := findPlace(g.PlaceMap, "P")
 	switch action {
 	case "move_up":
@@ -146,7 +149,7 @@ func (g *game) PlayAction(action string) {
 	g.TotalMoves++
 }
 
-func (g game) Print() {
+func (g labyrinth) Print() {
 	for j, _ := range g.PlaceMap {
 		for i, _ := range g.PlaceMap[j] {
 			fmt.Print(g.PlaceMap[j][i] + "   ")
@@ -160,11 +163,11 @@ func (g game) Print() {
 	fmt.Println()
 }
 
-func (g *game) PlaySideEffects() {
+func (g *labyrinth) PlaySideEffects() {
 
 }
 
-func (g *game) TurnResult(request tree.TurnRequest) tree.TurnResult {
+func (g *labyrinth) TurnResult(request tree.TurnRequest) tree.TurnResult {
 	endGame := false
 	if g.TotalMoves >= g.MaxMoves {
 		endGame = true
@@ -177,21 +180,21 @@ func (g *game) TurnResult(request tree.TurnRequest) tree.TurnResult {
 	}
 }
 
-func (g *game) GameResult() tree.GameResult {
+func (g *labyrinth) GameResult() tree.GameResult {
 	return tree.GameResult{
 		Score: g.MaxMoves - g.TotalMoves,
 	}
 }
 
-func (g *game) Copy() tree.State {
+func (g *labyrinth) Copy() tree.State {
 	b, _ := json.Marshal(g)
-	gCopy := &game{}
+	gCopy := &labyrinth{}
 	_ = json.Unmarshal(b, &gCopy)
 	return gCopy
 }
 
-func newGame() *game {
-	return &game{
+func newGame() *labyrinth {
+	return &labyrinth{
 		PlaceMap:  labyrinthMap(),
 		PlayerMap: playerMap(),
 		MaxMoves:  25,

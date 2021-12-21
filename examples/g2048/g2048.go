@@ -207,6 +207,12 @@ func (g g2048) freePlacesAndActions() tree.GameResult {
 	}
 }
 
+func (g g2048) freePlaces() tree.GameResult {
+	return tree.GameResult{
+		Score: len(getFreePlaces(g.board)),
+	}
+}
+
 func (g g2048) topFirst() int {
 	mapConverter := make(map[int]int, 0)
 	for _, val := range g.board {
@@ -245,7 +251,7 @@ func (g g2048) GameResult() tree.GameResult {
 	//possibles :=  len(g.PossibleActions())
 	//return tree.GameResult{Score: g.topFirst()}
 	//return g.freePlacesAndActions()
-	return g.simpleScore()
+	return g.freePlaces()
 }
 
 func getFreePlaces(board []int) []int {

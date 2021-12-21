@@ -34,8 +34,6 @@ func (dmp DefaultMemoryDB) Add(key, val string) error {
 }
 
 type StateTree struct {
-	debugState   func(node NodeDebug, debug Debug)
-	debugActions func(actions []*Action, selected *Action)
 	controller   func(req ControllerRequest) ControllerResponse
 	stats        *rootStats
 				// [depth] -> [id]
@@ -176,21 +174,13 @@ func newSHA512(data []byte) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (st *StateTree) DebugState(f func(n NodeDebug, debug Debug)) {
-	st.debugState = f
-}
-
-func (st *StateTree) DebugAction(f func(actions []*Action, selected *Action)) {
-	st.debugActions = f
-}
 
 type ControllerRequest struct {
 	State State
 }
 
 type ControllerResponse struct {
-	Restart bool
-	Expand  bool
+	ForceStop bool
 }
 
 func (st *StateTree) Controller(f func(req ControllerRequest) ControllerResponse) {
@@ -264,15 +254,13 @@ func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
 				achieveEndOfGame++
 				break
 			}
+			achieveEndOfGame = 0
 
 			state.PlayAction(currentAction.ID)
 			state.PlaySideEffects()
 
 
 			// new node
-			st.debugActions(node.Actions, currentAction)
-			st.debugState(NodeDebug{State: state, Id: node.id}, CurrentState)
-
 			actionMap[state.ID()] = currentAction
 			st.nodeMap[node.id] = node
 
@@ -293,7 +281,12 @@ func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
 			action.NVisited++
 		}
 
-		if depth > config.MaxDepth || achieveEndOfGame > 10 {
+		ctrlRes := st.controller(ControllerRequest{State: state})
+		if ctrlRes.ForceStop {
+			break
+		}
+
+		if depth > config.MaxDepth || achieveEndOfGame > 50 {
 			break
 		}
 	}
@@ -310,7 +303,6 @@ type State interface {
 	Copy() State
 	PlayAction(string)
 	PlaySideEffects()
-	//TurnResult(TurnRequest) TurnResult
 	GameResult() GameResult
 }
 
@@ -332,12 +324,6 @@ func (a Action) GetNVisited() int {
 
 func New() *StateTree {
 	return &StateTree{
-		debugState: func(n NodeDebug, debug Debug) {
-			// default
-		},
-		debugActions: func(actions []*Action, selected *Action) {
-
-		},
 		controller: func(req ControllerRequest) ControllerResponse {
 			return ControllerResponse{}
 		},
