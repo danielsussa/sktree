@@ -4,38 +4,46 @@ import (
 	"fmt"
 	tree "github.com/danielsussa/sktree"
 	"math/rand"
-	"strconv"
 )
 
 type player string
 
 const (
 	E player = "E"
-	X player = "X"
-	O player = "O"
+	H player = "H"
+	M player = "M"
 )
 
 type ticTacGame struct {
-	board    []player
-	lastMove int
+	board         []player
+	lastMove      int
+	currentPlayer player
+}
+
+func (t ticTacGame) Turn() tree.TurnKind {
+	if t.currentPlayer == H {
+		return tree.Human
+	}
+	return tree.Machine
 }
 
 func (t ticTacGame) Copy() tree.State {
 	newBoard := make([]player, len(t.board))
 	copy(newBoard, t.board)
-	return ticTacGame{
-		board:    newBoard,
-		lastMove: t.lastMove,
+	return &ticTacGame{
+		board:         newBoard,
+		lastMove:      t.lastMove,
+		currentPlayer: t.currentPlayer,
 	}
 }
 
-func (p player) toScore() int {
+func (p player) toScore() float64 {
 	switch p {
-	case X:
+	case H:
 		return 1
 	case E:
 		return 0
-	case O:
+	case M:
 		return -1
 	}
 	return 0
@@ -72,27 +80,23 @@ func (t ticTacGame) winner() player {
 	return E
 }
 
-func (t ticTacGame) PossibleActions() []string {
-	iters := make([]string, 0)
+func (t ticTacGame) PossibleActions() []any {
+	iters := make([]any, 0)
 	for idx, place := range t.board {
 		if place == E {
-			iters = append(iters, fmt.Sprintf("%d", idx))
+			iters = append(iters, idx)
 		}
 	}
 	return iters
 }
 
-func (t ticTacGame) PlayAction(a string) {
-	id, _ := strconv.Atoi(a)
-	t.move(id, X)
+func (t *ticTacGame) PlayAction(id any) {
+	t.move(id.(int), t.currentPlayer)
+	t.changePlayer()
 }
 
 func (t ticTacGame) ID() string {
 	return fmt.Sprintf("%v", t.board)
-}
-
-func (t ticTacGame) PlaySideEffects() {
-	t.randomMove(O)
 }
 
 func (t ticTacGame) TurnResult(req tree.TurnRequest) tree.TurnResult {
@@ -111,8 +115,16 @@ func (t ticTacGame) TurnResult(req tree.TurnRequest) tree.TurnResult {
 	}
 }
 
-func (t ticTacGame) GameResult() tree.GameResult {
-	return tree.GameResult{Score: t.winner().toScore()}
+func (t ticTacGame) GameResult() float64 {
+	return t.winner().toScore()
+}
+
+func (t *ticTacGame) changePlayer() {
+	if t.currentPlayer == H {
+		t.currentPlayer = M
+	} else {
+		t.currentPlayer = H
+	}
 }
 
 func (t ticTacGame) randomMove(p player) bool {

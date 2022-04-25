@@ -3,7 +3,7 @@ package labyrinth
 import (
 	"encoding/json"
 	"fmt"
-	tree "github.com/danielsussa/tmp_tree"
+	tree "github.com/danielsussa/sktree"
 )
 
 func labyrinthMap() [][]string {
@@ -180,10 +180,8 @@ func (g *labyrinth) TurnResult(request tree.TurnRequest) tree.TurnResult {
 	}
 }
 
-func (g *labyrinth) GameResult() tree.GameResult {
-	return tree.GameResult{
-		Score: g.MaxMoves - g.TotalMoves,
-	}
+func (g *labyrinth) GameResult() float64 {
+	return float64(g.MaxMoves - g.TotalMoves)
 }
 
 func (g *labyrinth) Copy() tree.State {

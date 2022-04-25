@@ -7,7 +7,8 @@ import (
 )
 
 func TestFirstSecondMoveMove(t *testing.T) {
-	game := ticTacGame{
+	game := &ticTacGame{
+		currentPlayer: H,
 		board: []player{
 			E, E, E,
 			E, E, E,
@@ -16,14 +17,14 @@ func TestFirstSecondMoveMove(t *testing.T) {
 	}
 
 	expected := []player{
+		H, E, E,
 		E, E, E,
-		E, X, E,
 		E, E, E,
 	}
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxDepth: 10,
+		MaxIterations: 4096,
 	})
 	stateTree.PlayTurn(game)
 
@@ -31,23 +32,24 @@ func TestFirstSecondMoveMove(t *testing.T) {
 }
 
 func TestBestSecondMoveMove(t *testing.T) {
-	game := ticTacGame{
+	game := &ticTacGame{
+		currentPlayer: H,
 		board: []player{
-			O, E, E,
+			M, E, E,
 			E, E, E,
 			E, E, E,
 		},
 	}
 
 	expected := []player{
-		O, E, E,
-		E, X, E,
+		M, E, E,
+		E, H, E,
 		E, E, E,
 	}
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxDepth: 10,
+		MaxIterations: 4096,
 	})
 	stateTree.PlayTurn(game)
 
@@ -55,25 +57,45 @@ func TestBestSecondMoveMove(t *testing.T) {
 }
 
 func TestDontLoseMoveMove(t *testing.T) {
-	game := ticTacGame{
+	game := &ticTacGame{
+		currentPlayer: H,
 		board: []player{
-			O, E, O,
-			E, X, E,
+			M, E, M,
+			E, H, E,
 			E, E, E,
 		},
 	}
 
 	expected := []player{
-		O, X, O,
-		E, X, E,
+		M, H, M,
+		E, H, E,
 		E, E, E,
 	}
 
 	stateTree := tree.New()
 	stateTree.Train(game, tree.StateTreeConfig{
-		MaxDepth: 10,
+		MaxIterations: 4096,
 	})
 	stateTree.PlayTurn(game)
 
 	assert.Equal(t, expected, game.board)
+}
+
+func TestTotalIterations(t *testing.T) {
+	game := &ticTacGame{
+		currentPlayer: M,
+		board: []player{
+			H, M, E,
+			M, M, H,
+			H, H, E,
+		},
+	}
+
+	stateTree := tree.New()
+	res := stateTree.Train(game, tree.StateTreeConfig{
+		MaxIterations: 4096,
+	})
+	stateTree.PlayTurn(game)
+
+	assert.Equal(t, 3, res.TotalNodes)
 }

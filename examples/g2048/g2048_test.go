@@ -17,30 +17,34 @@ func Test2048First(t *testing.T) {
 		2, 4, 0, 0,
 		64, 128, 256, 0,
 	}
-	print2048(game.board, game.score)
+	print2048(game)
 	totalPlays := 0
 	stateTree := tree.New()
-	for i := 0; i < 30; i++ {
-		res := stateTree.Train(game, tree.StateTreeConfig{
-			MaxDepth: 10,
+
+	for i := 0; i < 60; i++ {
+		trainRes := stateTree.Train(game, tree.StateTreeConfig{
+			MaxIterations: 2048 * 2048,
+			ScoreNormalizer: &tree.ScoreNormalizer{
+				Min: 0,
+				Max: 1024,
+			},
 		})
-		fmt.Println("new nodes: ", res.TotalNewNodes)
 
 		result := stateTree.PlayTurn(game)
 		if result.EndGame {
 			break
 		}
 
-		game.PlaySideEffects()
+		game.playSideEffects()
 
 		if game.topFirst() == 512 {
 			break
 		}
 
-		print2048(game.board, game.score)
+		print2048WithRes(game, trainRes, result)
 		totalPlays++
 	}
-	print2048(game.board, game.score)
+	print2048(game)
 	fmt.Println(totalPlays)
 }
 
@@ -55,51 +59,60 @@ func Test2048BestResult(t *testing.T) {
 	}
 
 	stateTree := tree.New()
-	res := stateTree.Train(game, tree.StateTreeConfig{
-		MaxDepth: 10,
+	_ = stateTree.Train(game, tree.StateTreeConfig{
+		MaxDepth: 15,
+		ScoreNormalizer: &tree.ScoreNormalizer{
+			Min: 0,
+			Max: 600,
+		},
 	})
-	fmt.Println("new nodes: ", res.TotalNewNodes)
 
 	result := stateTree.PlayTurn(game)
-	assert.Equal(t, result.Action.ID, "D")
+	assert.Equal(t, "L", result.Action.ID)
 }
 
 func Test2048GoToRight(t *testing.T) {
 	rand.Seed(3)
 	game := startNewGame()
 	game.board = []int{
-		0, 2, 0, 0,
-		0, 0, 0, 0,
-		0, 0, 0, 0,
-		64, 128, 256, 0,
+		64, 0, 64, 0,
+		0, 0, 128, 0,
+		0, 0, 1024, 0,
+		256, 512, 0, 0,
 	}
 
 	stateTree := tree.New()
-	res := stateTree.Train(game, tree.StateTreeConfig{
-		MaxDepth: 30,
+	stateTree.Controller(func(req tree.ControllerRequest) tree.ControllerResponse {
+		if topFirstValue(req.State.(*g2048).board) == 2048 {
+			return tree.ControllerResponse{ForceStop: true}
+		}
+		return tree.ControllerResponse{ForceStop: false}
 	})
-	fmt.Println("new nodes: ", res.TotalNewNodes)
+	_ = stateTree.Train(game, tree.StateTreeConfig{
+		//MaxDepth: 20,
+		ScoreNormalizer: &tree.ScoreNormalizer{
+			Min: 0,
+			Max: 200,
+		},
+	})
 
 	result := stateTree.PlayTurn(game)
-	assert.Equal(t, result.Action.ID, "R")
+	assert.Equal(t, "D", result.Action.ID)
 }
 
 // /media/kanczuk/146D-1AFD/dataset/game2048
 // /home/kanczuk/.tmp/game2048
 func TestPlay2048(t *testing.T) {
-	//defaultDb := defaultdb.NewBadgerDB("/media/kanczuk/146D-1AFD/dataset/badger/game2048")
-	//defaultDb := defaultdb.NewDefaultDiskDB("/media/kanczuk/mydataset/game2048")
-	//defaultDb := defaultdb.NewSqlDB("/media/kanczuk/datasetntfs/data/data.db")
 
 	rand.Seed(1)
 	game := startNewGame()
 
-	print2048(game.board, game.score)
+	print2048(game)
 	//stateTree.SetDB(defaultDb)
 	for {
 		stateTree := tree.New()
 		stateTree.Train(game, tree.StateTreeConfig{
-			MaxDepth:   15,
+			MaxDepth: 15,
 		})
 
 		result := stateTree.PlayTurn(game)
@@ -107,13 +120,13 @@ func TestPlay2048(t *testing.T) {
 			break
 		}
 
-		game.PlaySideEffects()
+		game.playSideEffects()
 
 		if len(game.PossibleActions()) == 0 {
 			break
 		}
 
-		print2048(game.board, game.score)
+		print2048(game)
 	}
-	print2048(game.board, game.score)
+	print2048(game)
 }

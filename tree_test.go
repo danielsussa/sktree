@@ -19,3 +19,59 @@ func TestMCT2(t *testing.T) {
 	fmt.Println(fSelection(0.0, 5, 1))
 	fmt.Println(fSelection(0.0, 10, 1))
 }
+
+func TestTmp(t *testing.T) {
+	nodeMap := make(map[int]Node, 0)
+	for i := 0; i < 1000000*20; i++ {
+		actionList := make([]*Action, 10)
+		for k := 0; k < 10; k++ {
+			actionList[k] = &Action{
+				ID:       "hellow wkw",
+				Score:    313141,
+				Turn:     "d",
+				deadEnd:  false,
+				NVisited: 455,
+			}
+			//actionList = append(actionList, &Action{
+			//	ID:       "hellow wkw",
+			//	Score:    313141,
+			//	Turn:     "d",
+			//	deadEnd:  false,
+			//	NVisited: 455,
+			//})
+		}
+		nodeMap[i] = Node{
+			Actions: actionList,
+			id:      "abcd",
+		}
+	}
+	fmt.Println(len(nodeMap))
+}
+
+func TestTmp2(t *testing.T) {
+	nodeMap := make([]Node, 0)
+	for i := 0; i < 1000000*50; i++ {
+		actionList := make([]*Action, 10)
+		for k := 0; k < 10; k++ {
+			actionList[k] = &Action{
+				ID:       "hellow wkw",
+				Score:    313141,
+				Turn:     "d",
+				deadEnd:  false,
+				NVisited: 455,
+			}
+			//actionList = append(actionList, &Action{
+			//	ID:       "hellow wkw",
+			//	Score:    313141,
+			//	Turn:     "d",
+			//	deadEnd:  false,
+			//	NVisited: 455,
+			//})
+		}
+		nodeMap = append(nodeMap, Node{
+			Actions: actionList,
+			id:      "abcd",
+		})
+	}
+	fmt.Println(len(nodeMap))
+}

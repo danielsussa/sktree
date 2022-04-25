@@ -1,43 +1,19 @@
 package tree
 
 import (
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/hex"
-	"fmt"
+	"bytes"
+	"encoding/json"
 	"math"
 	"math/rand"
 	"sort"
-	"strconv"
-	"strings"
 )
 
-type Database interface {
-	Find(string) (string, bool)
-	Add(string, string) error
-}
-
-type DefaultMemoryDB struct {
-	nodeMap map[string]string
-}
-
-func (dmp DefaultMemoryDB) Find(key string) (string, bool) {
-	if node, ok := dmp.nodeMap[key]; ok {
-		return node, true
-	}
-	return "", false
-}
-
-func (dmp DefaultMemoryDB) Add(key, val string) error {
-	dmp.nodeMap[key] = val
-	return nil
-}
-
 type StateTree struct {
-	controller   func(req ControllerRequest) ControllerResponse
-	stats        *rootStats
-				// [depth] -> [id]
+	controller func(req ControllerRequest) ControllerResponse
+	stats      *rootStats
+	// [depth] -> [id]
 	nodeMap map[string]*Node
+	logs    bytes.Buffer
 }
 
 type rootStats struct {
@@ -49,22 +25,16 @@ type Node struct {
 	id      string
 }
 
-func (n Node) toDB() string {
-	var b strings.Builder
-	for _, act := range n.Actions {
-		b.WriteString(fmt.Sprintf("%s;%d;%d;", act.ID, act.NVisited, act.Score))
-	}
-	return strings.TrimRight(b.String(), ";")
-}
-
 type NodeDebug struct {
 	Id    string
 	State State
 }
 
 type Action struct {
-	ID       string
-	Score    int
+	ID       any
+	Score    float64
+	Turn     TurnKind
+	deadEnd  bool
 	NVisited int
 }
 
@@ -79,6 +49,9 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 	for _, action := range n.Actions {
 		if action.NVisited == 0 {
 			return action
+		}
+		if action.deadEnd {
+			continue
 		}
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
@@ -101,6 +74,14 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 	return actionScoreList[0].action
 }
 
+func (n *Node) totalNVisited() int {
+	nvisited := 0
+	for _, action := range n.Actions {
+		nvisited += action.NVisited
+	}
+	return nvisited
+}
+
 func fSelection(total float64, nVisited, NVisited int) float64 {
 	exploitation := total / float64(nVisited)
 	exploration := math.Sqrt(2 * math.Log(float64(NVisited)) / float64(nVisited))
@@ -117,27 +98,6 @@ const (
 	Expand       Debug = "expand"
 )
 
-func parseToNode(key, val string) *Node {
-	valSpl := strings.Split(val, ";")
-
-	actions := make([]*Action, 0)
-	for i := 0; i < len(valSpl); i += 3 {
-		id := valSpl[i]
-		nVisited, _ := strconv.Atoi(valSpl[i+1])
-		score, _ := strconv.Atoi(valSpl[i+2])
-		actions = append(actions, &Action{
-			ID:       id,
-			Score:    score,
-			NVisited: nVisited,
-		})
-	}
-
-	return &Node{
-		Actions: actions,
-		id:      key,
-	}
-}
-
 func (st *StateTree) getOrCreateNode(state State) (*Node, bool) {
 	stateId := state.ID()
 
@@ -149,13 +109,14 @@ func (st *StateTree) getOrCreateNode(state State) (*Node, bool) {
 	for _, action := range state.PossibleActions() {
 		actionList = append(actionList, &Action{
 			ID:    action,
+			Turn:  state.Turn(),
 			Score: 0,
 		})
 	}
 
-	rand.Shuffle(len(actionList), func(i, j int) {
-		actionList[i], actionList[j] = actionList[j], actionList[i]
-	})
+	//rand.Shuffle(len(actionList), func(i, j int) {
+	//	actionList[i], actionList[j] = actionList[j], actionList[i]
+	//})
 
 	node := &Node{
 		Actions: actionList,
@@ -163,17 +124,6 @@ func (st *StateTree) getOrCreateNode(state State) (*Node, bool) {
 	}
 	return node, true
 }
-
-func newSHA256(data []byte) string {
-	hash := sha256.Sum256(data)
-	return hex.EncodeToString(hash[:])
-}
-
-func newSHA512(data []byte) string {
-	hash := sha512.Sum512(data)
-	return hex.EncodeToString(hash[:])
-}
-
 
 type ControllerRequest struct {
 	State State
@@ -187,13 +137,6 @@ func (st *StateTree) Controller(f func(req ControllerRequest) ControllerResponse
 	st.controller = f
 }
 
-//func (st *StateTree) SingleSimulation(s State) {
-//	for {
-//		root := s.Copy()
-//	}
-//}
-
-
 type PlayTurnResult struct {
 	EndGame bool
 	Action  *Action
@@ -204,7 +147,7 @@ func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 	node, _ := st.getOrCreateNode(state)
 
 	currentAction := node.selectAction(st.stats)
-	
+
 	if currentAction == nil {
 		return PlayTurnResult{}
 	}
@@ -217,102 +160,187 @@ func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 	}
 }
 
-func (st *StateTree) flush() {
-	st.nodeMap = make(map[string]*Node, 0)
-	st.stats = &rootStats{NVisited: 0}
+func (st *StateTree) flush(s State, c StateTreeConfig) {
+	if st.nodeMap == nil {
+		st.nodeMap = make(map[string]*Node, 0)
+	}
+
+	if c.Flush {
+		st.nodeMap = make(map[string]*Node, 0)
+		st.stats = &rootStats{NVisited: 0}
+	} else {
+		node, _ := st.getOrCreateNode(s)
+		st.stats = &rootStats{NVisited: node.totalNVisited()}
+	}
 }
 
 type StateTreeConfig struct {
-	MaxDepth   int
+	MaxDepth        int
+	MaxIterations   int
+	ScoreNormalizer *ScoreNormalizer
+	Flush           bool
+}
+
+type ScoreNormalizer struct {
+	Min float64
+	Max float64
 }
 
 type TrainResult struct {
-	TotalNewNodes int
+	TotalNodes      int
+	TotalIterations int
 }
 
-func (st *StateTree) Train(s State, config StateTreeConfig) TrainResult{
-	st.flush()
+func (st *StateTree) Train(s State, config StateTreeConfig) TrainResult {
+	st.flush(s, config)
 	return st.train(s, config)
 }
 
-func (st *StateTree) train(s State, config StateTreeConfig)  TrainResult{
-	totalGamesWithoutNewNode := 0
-	newNodes := 0
+func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
+	if st.copyError(s) {
+		return TrainResult{}
+	}
 
+	currIteration := 0
 	for {
 		state := s.Copy()
-		actionMap := make(map[string]*Action, 0)
+		var statePreSim State
+		actionList := make([]*Action, 0)
 		depth := 0
-		gameWithNewNode := false
+		deadEnd := false
+		oneLoopGame := true
 
 		// game loop
+	gameLoop:
 		for {
 			node, newNode := st.getOrCreateNode(state)
 
 			currentAction := node.selectAction(st.stats)
 
 			if currentAction == nil {
-				break
+				deadEnd = true
+				statePreSim = state.Copy()
+				break gameLoop
 			}
 
 			state.PlayAction(currentAction.ID)
-			state.PlaySideEffects()
-
 
 			// new node
-			actionMap[state.ID()] = currentAction
+			actionList = append(actionList, currentAction)
 			st.nodeMap[node.id] = node
 
 			depth++
+			currIteration++
+			oneLoopGame = false
 			if newNode {
-				gameWithNewNode = true
-				break
+				statePreSim = state.Copy()
+				for {
+					actions := state.PossibleActions()
+					if actions == nil || len(actions) == 0 {
+						break gameLoop
+					}
+					rndIdx := rand.Intn(len(actions))
+					state.PlayAction(actions[rndIdx])
+				}
 			}
-			//if depth > config.MaxDepth {
-			//	break
-			//}
 
-		}
-
-		if !gameWithNewNode {
-			totalGamesWithoutNewNode++
 		}
 
 		st.stats.NVisited++
-		gameResult := state.GameResult()
-		for _, action := range actionMap {
-			action.Score += gameResult.Score
+		score := normalize(state.GameResult(), config.ScoreNormalizer)
+		for idx, action := range actionList {
+			if deadEnd && len(actionList)-1 == idx {
+				action.deadEnd = true
+			}
+			if action.Turn == Human {
+				action.Score += score
+			} else {
+				action.Score -= score
+			}
+
 			action.NVisited++
 		}
 
-		ctrlRes := st.controller(ControllerRequest{State: state})
-		if ctrlRes.ForceStop {
-			break
-		}
-
-		if depth > config.MaxDepth || totalGamesWithoutNewNode > 10 {
+		if st.finishGame(config, finishGameRequest{
+			currDepth:     depth,
+			currIteration: currIteration,
+			state:         statePreSim,
+			oneLoopGame:   oneLoopGame,
+		}) {
 			break
 		}
 	}
 
 	return TrainResult{
-		TotalNewNodes: newNodes,
+		TotalIterations: currIteration,
+		TotalNodes:      len(st.nodeMap),
 	}
 }
 
+func (st *StateTree) copyError(s State) bool {
+	sCopy := s.Copy()
+	b1, err := json.Marshal(s)
+	if err != nil {
+		return true
+	}
+
+	b2, err := json.Marshal(sCopy)
+	if err != nil {
+		return true
+	}
+
+	if bytes.Compare(b1, b2) != 0 {
+		return true
+	}
+	return false
+}
+
+type finishGameRequest struct {
+	state         State
+	currDepth     int
+	currIteration int
+	oneLoopGame   bool
+}
+
+func normalize(val float64, n *ScoreNormalizer) float64 {
+	if n == nil {
+		return val
+	}
+	return (val - n.Min) / (n.Max - n.Min)
+}
+
+func (st *StateTree) finishGame(config StateTreeConfig, req finishGameRequest) bool {
+	ctrlRes := st.controller(ControllerRequest{State: req.state})
+	if ctrlRes.ForceStop {
+		return true
+	}
+	if config.MaxDepth > 0 && req.currDepth >= config.MaxDepth {
+		return true
+	}
+	if config.MaxIterations > 0 && req.currIteration >= config.MaxIterations {
+		return true
+	}
+	if req.oneLoopGame {
+		return true
+	}
+	return false
+}
 
 type State interface {
 	ID() string
-	PossibleActions() []string
+	PossibleActions() []any
 	Copy() State
-	PlayAction(string)
-	PlaySideEffects()
-	GameResult() GameResult
+	PlayAction(any)
+	GameResult() float64
+	Turn() TurnKind
 }
 
-type GameResult struct {
-	Score int
-}
+type TurnKind string
+
+const (
+	Human   TurnKind = "human"
+	Machine TurnKind = "machine"
+)
 
 type TurnRequest struct {
 	Depth int
