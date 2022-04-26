@@ -42,15 +42,14 @@ func TestTmp(t *testing.T) {
 		}
 		nodeMap[i] = Node{
 			Actions: actionList,
-			id:      "abcd",
 		}
 	}
 	fmt.Println(len(nodeMap))
 }
 
 func TestTmp2(t *testing.T) {
-	nodeMap := make([]Node, 0)
-	for i := 0; i < 1000000*50; i++ {
+	nodeMap := make([]*Node, 1000000*1000)
+	for i := 0; i < 1000000*10; i++ {
 		actionList := make([]*Action, 10)
 		for k := 0; k < 10; k++ {
 			actionList[k] = &Action{
@@ -68,10 +67,12 @@ func TestTmp2(t *testing.T) {
 			//	NVisited: 455,
 			//})
 		}
-		nodeMap = append(nodeMap, Node{
+		nodeMap[i] = &Node{
 			Actions: actionList,
-			id:      "abcd",
-		})
+		}
+		//nodeMap = append(nodeMap, &Node{
+		//	Actions: actionList,
+		//})
 	}
 	fmt.Println(len(nodeMap))
 }

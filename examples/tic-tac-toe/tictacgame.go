@@ -95,10 +95,6 @@ func (t *ticTacGame) PlayAction(id any) {
 	t.changePlayer()
 }
 
-func (t ticTacGame) ID() string {
-	return fmt.Sprintf("%v", t.board)
-}
-
 func (t ticTacGame) TurnResult(req tree.TurnRequest) tree.TurnResult {
 	if t.winner() != E {
 		return tree.TurnResult{

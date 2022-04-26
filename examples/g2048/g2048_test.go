@@ -89,7 +89,7 @@ func Test2048GoToRight(t *testing.T) {
 		return tree.ControllerResponse{ForceStop: false}
 	})
 	_ = stateTree.Train(game, tree.StateTreeConfig{
-		//MaxDepth: 20,
+		MaxDepth: 10,
 		ScoreNormalizer: &tree.ScoreNormalizer{
 			Min: 0,
 			Max: 200,

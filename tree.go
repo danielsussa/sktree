@@ -12,17 +12,18 @@ type StateTree struct {
 	controller func(req ControllerRequest) ControllerResponse
 	stats      *rootStats
 	// [depth] -> [id]
-	nodeMap map[string]*Node
-	logs    bytes.Buffer
+	nodeList []*Node
+	logs     bytes.Buffer
 }
 
 type rootStats struct {
-	NVisited int
+	NVisited  int
+	AllocNode int
+	NumNodes  int
 }
 
 type Node struct {
 	Actions []*Action
-	id      string
 }
 
 type NodeDebug struct {
@@ -36,6 +37,7 @@ type Action struct {
 	Turn     TurnKind
 	deadEnd  bool
 	NVisited int
+	NodeIdx  int
 }
 
 type actionScore struct {
@@ -98,30 +100,38 @@ const (
 	Expand       Debug = "expand"
 )
 
-func (st *StateTree) getOrCreateNode(state State) (*Node, bool) {
-	stateId := state.ID()
+func (rs *rootStats) setIdx() int {
+	rs.AllocNode++
+	return rs.AllocNode
+}
 
-	if val, ok := st.nodeMap[stateId]; ok {
-		return val, false
+func (rs *rootStats) addNumNodes() {
+	rs.NumNodes++
+}
+
+func (st *StateTree) getOrCreateNode(state State, idx int) (*Node, bool) {
+	if idx < st.stats.NumNodes {
+		node := st.nodeList[idx]
+		if node != nil {
+			return st.nodeList[idx], false
+		}
 	}
-
-	actionList := make([]*Action, 0)
-	for _, action := range state.PossibleActions() {
-		actionList = append(actionList, &Action{
-			ID:    action,
-			Turn:  state.Turn(),
-			Score: 0,
-		})
-	}
-
-	//rand.Shuffle(len(actionList), func(i, j int) {
-	//	actionList[i], actionList[j] = actionList[j], actionList[i]
-	//})
-
+	actions := state.PossibleActions()
+	actionList := make([]*Action, len(actions))
 	node := &Node{
 		Actions: actionList,
-		id:      stateId,
 	}
+	st.nodeList[idx] = node
+	st.stats.addNumNodes()
+	for actIdx, action := range actions {
+		actionList[actIdx] = &Action{
+			ID:      action,
+			NodeIdx: st.stats.setIdx(),
+			Turn:    state.Turn(),
+			Score:   0,
+		}
+	}
+
 	return node, true
 }
 
@@ -144,7 +154,7 @@ type PlayTurnResult struct {
 
 func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 
-	node, _ := st.getOrCreateNode(state)
+	node := st.nodeList[0]
 
 	currentAction := node.selectAction(st.stats)
 
@@ -161,16 +171,13 @@ func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 }
 
 func (st *StateTree) flush(s State, c StateTreeConfig) {
-	if st.nodeMap == nil {
-		st.nodeMap = make(map[string]*Node, 0)
+	if st.nodeList == nil {
+		st.nodeList = make([]*Node, 1000*1000000)
 	}
 
 	if c.Flush {
-		st.nodeMap = make(map[string]*Node, 0)
+		st.nodeList = make([]*Node, 1000*1000000)
 		st.stats = &rootStats{NVisited: 0}
-	} else {
-		node, _ := st.getOrCreateNode(s)
-		st.stats = &rootStats{NVisited: node.totalNVisited()}
 	}
 }
 
@@ -209,11 +216,12 @@ func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 		depth := 0
 		deadEnd := false
 		oneLoopGame := true
+		crrSelectedIdx := 0
 
 		// game loop
 	gameLoop:
 		for {
-			node, newNode := st.getOrCreateNode(state)
+			node, newNode := st.getOrCreateNode(state, crrSelectedIdx)
 
 			currentAction := node.selectAction(st.stats)
 
@@ -225,13 +233,10 @@ func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 
 			state.PlayAction(currentAction.ID)
 
-			// new node
-			actionList = append(actionList, currentAction)
-			st.nodeMap[node.id] = node
-
 			depth++
 			currIteration++
 			oneLoopGame = false
+			crrSelectedIdx = currentAction.NodeIdx
 			if newNode {
 				statePreSim = state.Copy()
 				for {
@@ -242,6 +247,8 @@ func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 					rndIdx := rand.Intn(len(actions))
 					state.PlayAction(actions[rndIdx])
 				}
+			} else {
+				actionList = append(actionList, currentAction)
 			}
 
 		}
@@ -273,7 +280,7 @@ func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 
 	return TrainResult{
 		TotalIterations: currIteration,
-		TotalNodes:      len(st.nodeMap),
+		TotalNodes:      len(st.nodeList),
 	}
 }
 
@@ -327,7 +334,6 @@ func (st *StateTree) finishGame(config StateTreeConfig, req finishGameRequest) b
 }
 
 type State interface {
-	ID() string
 	PossibleActions() []any
 	Copy() State
 	PlayAction(any)

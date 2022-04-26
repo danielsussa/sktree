@@ -17,8 +17,8 @@ func TestFirstSecondMoveMove(t *testing.T) {
 	}
 
 	expected := []player{
-		H, E, E,
 		E, E, E,
+		E, H, E,
 		E, E, E,
 	}
 
