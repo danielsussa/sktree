@@ -15,42 +15,43 @@ const (
 )
 
 type ticTacGame struct {
-	board         []player
-	lastMove      int
-	currentPlayer player
+	Board         []player
+	LastMove      int
+	CurrentPlayer player
+	MainPlayer    player
 }
 
-func (t ticTacGame) Turn() tree.TurnKind {
-	if t.currentPlayer == H {
-		return tree.Human
-	}
-	return tree.Machine
+func (t ticTacGame) OpponentTurn() bool {
+	return t.MainPlayer != t.CurrentPlayer
 }
 
 func (t ticTacGame) Copy() tree.State {
-	newBoard := make([]player, len(t.board))
-	copy(newBoard, t.board)
+	newBoard := make([]player, len(t.Board))
+	copy(newBoard, t.Board)
 	return &ticTacGame{
-		board:         newBoard,
-		lastMove:      t.lastMove,
-		currentPlayer: t.currentPlayer,
+		Board:         newBoard,
+		LastMove:      t.LastMove,
+		CurrentPlayer: t.CurrentPlayer,
+		MainPlayer:    t.MainPlayer,
 	}
 }
 
-func (p player) toScore() float64 {
+func (p player) toScore(mainPlayer player) float64 {
+	k := 1.0
+	if mainPlayer == M {
+		k = -1.0
+	}
 	switch p {
 	case H:
-		return 1
-	case E:
-		return 0
+		return 1 * k
 	case M:
-		return -1
+		return -1 * k
 	}
 	return 0
 }
 
 func (t ticTacGame) winner() player {
-	b := t.board
+	b := t.Board
 	if b[0] == b[1] && b[0] == b[2] && b[0] != E {
 		return b[0]
 	}
@@ -81,8 +82,11 @@ func (t ticTacGame) winner() player {
 }
 
 func (t ticTacGame) PossibleActions() []any {
+	if t.winner() != E {
+		return nil
+	}
 	iters := make([]any, 0)
-	for idx, place := range t.board {
+	for idx, place := range t.Board {
 		if place == E {
 			iters = append(iters, idx)
 		}
@@ -91,7 +95,7 @@ func (t ticTacGame) PossibleActions() []any {
 }
 
 func (t *ticTacGame) PlayAction(id any) {
-	t.move(id.(int), t.currentPlayer)
+	t.move(id.(int), t.CurrentPlayer)
 	t.changePlayer()
 }
 
@@ -112,21 +116,21 @@ func (t ticTacGame) TurnResult(req tree.TurnRequest) tree.TurnResult {
 }
 
 func (t ticTacGame) GameResult() float64 {
-	return t.winner().toScore()
+	return t.winner().toScore(t.MainPlayer)
 }
 
 func (t *ticTacGame) changePlayer() {
-	if t.currentPlayer == H {
-		t.currentPlayer = M
+	if t.CurrentPlayer == H {
+		t.CurrentPlayer = M
 	} else {
-		t.currentPlayer = H
+		t.CurrentPlayer = H
 	}
 }
 
 func (t ticTacGame) randomMove(p player) bool {
 	free := make([]int, 0)
 
-	for idx, place := range t.board {
+	for idx, place := range t.Board {
 		if place == E {
 			free = append(free, idx)
 		}
@@ -135,17 +139,17 @@ func (t ticTacGame) randomMove(p player) bool {
 		return false
 	}
 	place := free[rand.Intn(len(free))]
-	t.board[place] = p
+	t.Board[place] = p
 	return true
 }
 
 func (t ticTacGame) print() {
 	fmt.Println("----------------------")
-	fmt.Println(fmt.Sprintf("%s|%s|%s", t.board[0], t.board[1], t.board[2]))
-	fmt.Println(fmt.Sprintf("%s|%s|%s", t.board[3], t.board[4], t.board[5]))
-	fmt.Println(fmt.Sprintf("%s|%s|%s", t.board[6], t.board[7], t.board[8]))
+	fmt.Println(fmt.Sprintf("%s|%s|%s", t.Board[0], t.Board[1], t.Board[2]))
+	fmt.Println(fmt.Sprintf("%s|%s|%s", t.Board[3], t.Board[4], t.Board[5]))
+	fmt.Println(fmt.Sprintf("%s|%s|%s", t.Board[6], t.Board[7], t.Board[8]))
 }
 
 func (t ticTacGame) move(idx int, p player) {
-	t.board[idx] = p
+	t.Board[idx] = p
 }

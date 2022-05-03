@@ -19,11 +19,11 @@ func Test2048First(t *testing.T) {
 	}
 	print2048(game)
 	totalPlays := 0
-	stateTree := tree.New()
 
 	for i := 0; i < 60; i++ {
+		stateTree := tree.New()
 		trainRes := stateTree.Train(game, tree.StateTreeConfig{
-			MaxIterations: 2048 * 2048,
+			MaxIterations: 4096,
 			ScoreNormalizer: &tree.ScoreNormalizer{
 				Min: 0,
 				Max: 1024,
@@ -44,6 +44,7 @@ func Test2048First(t *testing.T) {
 		print2048WithRes(game, trainRes, result)
 		totalPlays++
 	}
+	fmt.Println("total plays: ", totalPlays)
 	print2048(game)
 	fmt.Println(totalPlays)
 }
@@ -88,13 +89,14 @@ func Test2048GoToRight(t *testing.T) {
 		}
 		return tree.ControllerResponse{ForceStop: false}
 	})
-	_ = stateTree.Train(game, tree.StateTreeConfig{
+	res := stateTree.Train(game, tree.StateTreeConfig{
 		MaxDepth: 10,
 		ScoreNormalizer: &tree.ScoreNormalizer{
 			Min: 0,
-			Max: 200,
+			Max: 2048,
 		},
 	})
+	fmt.Println(res.TotalNodes)
 
 	result := stateTree.PlayTurn(game)
 	assert.Equal(t, "D", result.Action.ID)
@@ -112,7 +114,7 @@ func TestPlay2048(t *testing.T) {
 	for {
 		stateTree := tree.New()
 		stateTree.Train(game, tree.StateTreeConfig{
-			MaxDepth: 15,
+			MaxIterations: 4096 * 32,
 		})
 
 		result := stateTree.PlayTurn(game)

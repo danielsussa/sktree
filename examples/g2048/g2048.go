@@ -16,7 +16,7 @@ type g2048 struct {
 	turn       tree.TurnKind
 }
 
-func (g g2048) Turn() tree.TurnKind {
+func (g g2048) IsOpponentTurn() tree.TurnKind {
 	return g.turn
 }
 

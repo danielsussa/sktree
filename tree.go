@@ -2,7 +2,7 @@ package tree
 
 import (
 	"bytes"
-	"encoding/json"
+	"github.com/google/go-cmp/cmp"
 	"math"
 	"math/rand"
 	"sort"
@@ -18,12 +18,15 @@ type StateTree struct {
 
 type rootStats struct {
 	NVisited  int
+	MaxNodes  int
 	AllocNode int
 	NumNodes  int
 }
 
 type Node struct {
-	Actions []*Action
+	OpponentTurn bool
+	Actions      []*Action
+	Idx          int
 }
 
 type NodeDebug struct {
@@ -32,17 +35,38 @@ type NodeDebug struct {
 }
 
 type Action struct {
-	ID       any
-	Score    float64
-	Turn     TurnKind
-	deadEnd  bool
-	NVisited int
-	NodeIdx  int
+	ID           any
+	Score        float64
+	OpponentTurn bool
+	NVisited     int
+	NodeIdx      int
+}
+
+func (a Action) GetNVisited() int {
+	return a.NVisited
+}
+
+func (a Action) scoreAvg() float64 {
+	return a.Score / float64(a.NVisited)
 }
 
 type actionScore struct {
 	action *Action
 	score  float64
+}
+
+func (n *Node) selectBestAction() *Action {
+	var bestAction *Action
+	for _, action := range n.Actions {
+		if bestAction == nil {
+			bestAction = action
+		}
+		if bestAction.scoreAvg() < action.scoreAvg() {
+			bestAction = action
+		}
+
+	}
+	return bestAction
 }
 
 func (n *Node) selectAction(stats *rootStats) *Action {
@@ -52,15 +76,20 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 		if action.NVisited == 0 {
 			return action
 		}
-		if action.deadEnd {
-			continue
+
+		preScore := action.Score
+		if n.OpponentTurn {
+			preScore = preScore * -1
 		}
+		score := fSelection(preScore, action.NVisited, stats.NVisited)
+
 		actionScoreList = append(actionScoreList, actionScore{
 			action: action,
-			score:  fSelection(float64(action.Score), action.NVisited, stats.NVisited),
+			score:  score,
 		})
 	}
-	sort.SliceStable(actionScoreList, func(i, j int) bool {
+
+	sort.Slice(actionScoreList, func(i, j int) bool {
 		if actionScoreList[i].score > actionScoreList[j].score {
 			return true
 		} else if actionScoreList[i].score < actionScoreList[j].score {
@@ -69,6 +98,7 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 			return actionScoreList[i].action.NVisited < actionScoreList[j].action.NVisited
 		}
 	})
+
 	if len(actionScoreList) == 0 {
 		return nil
 	}
@@ -77,15 +107,15 @@ func (n *Node) selectAction(stats *rootStats) *Action {
 }
 
 func (n *Node) totalNVisited() int {
-	nvisited := 0
+	nVisited := 0
 	for _, action := range n.Actions {
-		nvisited += action.NVisited
+		nVisited += action.NVisited
 	}
-	return nvisited
+	return nVisited
 }
 
-func fSelection(total float64, nVisited, NVisited int) float64 {
-	exploitation := total / float64(nVisited)
+func fSelection(value float64, nVisited, NVisited int) float64 {
+	exploitation := value / float64(nVisited)
 	exploration := math.Sqrt(2 * math.Log(float64(NVisited)) / float64(nVisited))
 	sum := exploitation + exploration
 	return (sum * 100) / 100
@@ -109,6 +139,13 @@ func (rs *rootStats) addNumNodes() {
 	rs.NumNodes++
 }
 
+func (st *StateTree) allocArr(idx int) {
+	if idx >= st.stats.MaxNodes {
+		st.stats.MaxNodes = idx * 2
+		st.nodeList = st.nodeList[:st.stats.MaxNodes]
+	}
+}
+
 func (st *StateTree) getOrCreateNode(state State, idx int) (*Node, bool) {
 	if idx < st.stats.NumNodes {
 		node := st.nodeList[idx]
@@ -118,17 +155,20 @@ func (st *StateTree) getOrCreateNode(state State, idx int) (*Node, bool) {
 	}
 	actions := state.PossibleActions()
 	actionList := make([]*Action, len(actions))
+	opponentTurn := state.OpponentTurn()
 	node := &Node{
-		Actions: actionList,
+		Idx:          idx,
+		OpponentTurn: opponentTurn,
+		Actions:      actionList,
 	}
 	st.nodeList[idx] = node
 	st.stats.addNumNodes()
 	for actIdx, action := range actions {
 		actionList[actIdx] = &Action{
-			ID:      action,
-			NodeIdx: st.stats.setIdx(),
-			Turn:    state.Turn(),
-			Score:   0,
+			ID:           action,
+			NodeIdx:      st.stats.setIdx(),
+			OpponentTurn: opponentTurn,
+			Score:        0,
 		}
 	}
 
@@ -156,7 +196,7 @@ func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 
 	node := st.nodeList[0]
 
-	currentAction := node.selectAction(st.stats)
+	currentAction := node.selectBestAction()
 
 	if currentAction == nil {
 		return PlayTurnResult{}
@@ -171,21 +211,24 @@ func (st *StateTree) PlayTurn(state State) PlayTurnResult {
 }
 
 func (st *StateTree) flush(s State, c StateTreeConfig) {
+	st.stats.NVisited = -1
+	st.stats.MaxNodes = 1000
 	if st.nodeList == nil {
-		st.nodeList = make([]*Node, 1000*1000000)
+		st.nodeList = make([]*Node, st.stats.MaxNodes, 1000000*100)
 	}
 
 	if c.Flush {
-		st.nodeList = make([]*Node, 1000*1000000)
+		st.nodeList = make([]*Node, st.stats.MaxNodes, 1000000*100)
 		st.stats = &rootStats{NVisited: 0}
 	}
 }
 
 type StateTreeConfig struct {
-	MaxDepth        int
-	MaxIterations   int
-	ScoreNormalizer *ScoreNormalizer
-	Flush           bool
+	MaxDepth         int
+	MaxIterations    int
+	ScoreNormalizer  *ScoreNormalizer
+	Flush            bool
+	TotalSimulations int
 }
 
 type ScoreNormalizer struct {
@@ -198,79 +241,65 @@ type TrainResult struct {
 	TotalIterations int
 }
 
-func (st *StateTree) Train(s State, config StateTreeConfig) TrainResult {
-	st.flush(s, config)
-	return st.train(s, config)
+func (st *StateTree) Train(s State, c StateTreeConfig) TrainResult {
+	if c.TotalSimulations == 0 {
+		c.TotalSimulations = 1
+	}
+	st.flush(s, c)
+	return st.train(s, c)
 }
 
 func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 	if st.copyError(s) {
-		return TrainResult{}
+		panic("object copy with different values")
 	}
 
-	currIteration := 0
 	for {
 		state := s.Copy()
 		var statePreSim State
 		actionList := make([]*Action, 0)
 		depth := 0
-		deadEnd := false
 		oneLoopGame := true
-		crrSelectedIdx := 0
+		currSelectedNodeIdx := 0
+		score := 0.0
 
 		// game loop
 	gameLoop:
 		for {
-			node, newNode := st.getOrCreateNode(state, crrSelectedIdx)
+			st.allocArr(currSelectedNodeIdx)
+			node, newNode := st.getOrCreateNode(state, currSelectedNodeIdx)
 
 			currentAction := node.selectAction(st.stats)
 
 			if currentAction == nil {
-				deadEnd = true
+				score = state.GameResult()
 				statePreSim = state.Copy()
 				break gameLoop
 			}
 
-			state.PlayAction(currentAction.ID)
-
 			depth++
-			currIteration++
 			oneLoopGame = false
-			crrSelectedIdx = currentAction.NodeIdx
+			currSelectedNodeIdx = currentAction.NodeIdx
+
 			if newNode {
 				statePreSim = state.Copy()
-				for {
-					actions := state.PossibleActions()
-					if actions == nil || len(actions) == 0 {
-						break gameLoop
-					}
-					rndIdx := rand.Intn(len(actions))
-					state.PlayAction(actions[rndIdx])
-				}
+				score = st.simulate(state, config)
+				break gameLoop
 			} else {
+				state.PlayAction(currentAction.ID)
 				actionList = append(actionList, currentAction)
 			}
-
 		}
 
 		st.stats.NVisited++
-		score := normalize(state.GameResult(), config.ScoreNormalizer)
-		for idx, action := range actionList {
-			if deadEnd && len(actionList)-1 == idx {
-				action.deadEnd = true
-			}
-			if action.Turn == Human {
-				action.Score += score
-			} else {
-				action.Score -= score
-			}
-
+		for _, action := range actionList {
+			action.Score += score
 			action.NVisited++
 		}
 
 		if st.finishGame(config, finishGameRequest{
 			currDepth:     depth,
-			currIteration: currIteration,
+			currIteration: st.stats.NVisited,
 			state:         statePreSim,
 			oneLoopGame:   oneLoopGame,
 		}) {
@@ -278,28 +307,40 @@ func (st *StateTree) train(s State, config StateTreeConfig) TrainResult {
 		}
 	}
 
-	return TrainResult{
-		TotalIterations: currIteration,
-		TotalNodes:      len(st.nodeList),
+	totalNodes := 0
+	for _, n := range st.nodeList {
+		if n != nil {
+			totalNodes++
+		}
 	}
+
+	return TrainResult{
+		TotalIterations: st.stats.NVisited,
+		TotalNodes:      totalNodes,
+	}
+}
+
+func (st *StateTree) simulate(s State, config StateTreeConfig) float64 {
+	score := 0.0
+	for i := 0; i < config.TotalSimulations; i++ {
+		state := s.Copy()
+		for {
+			actions := state.PossibleActions()
+			if actions == nil || len(actions) == 0 {
+				break
+			}
+			rndIdx := rand.Intn(len(actions))
+			state.PlayAction(actions[rndIdx])
+		}
+		score += normalize(state.GameResult(), config.ScoreNormalizer)
+	}
+	return score / float64(config.TotalSimulations)
 }
 
 func (st *StateTree) copyError(s State) bool {
 	sCopy := s.Copy()
-	b1, err := json.Marshal(s)
-	if err != nil {
-		return true
-	}
-
-	b2, err := json.Marshal(sCopy)
-	if err != nil {
-		return true
-	}
-
-	if bytes.Compare(b1, b2) != 0 {
-		return true
-	}
-	return false
+	equal := cmp.Equal(s, sCopy)
+	return !equal
 }
 
 type finishGameRequest struct {
@@ -334,19 +375,12 @@ func (st *StateTree) finishGame(config StateTreeConfig, req finishGameRequest) b
 }
 
 type State interface {
-	PossibleActions() []any
 	Copy() State
 	PlayAction(any)
+	PossibleActions() []any
 	GameResult() float64
-	Turn() TurnKind
+	OpponentTurn() bool
 }
-
-type TurnKind string
-
-const (
-	Human   TurnKind = "human"
-	Machine TurnKind = "machine"
-)
 
 type TurnRequest struct {
 	Depth int
@@ -354,10 +388,6 @@ type TurnRequest struct {
 
 type TurnResult struct {
 	EndGame bool
-}
-
-func (a Action) GetNVisited() int {
-	return a.NVisited
 }
 
 func New() *StateTree {
