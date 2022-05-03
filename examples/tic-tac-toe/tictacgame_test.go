@@ -12,7 +12,6 @@ func TestGameScore(t *testing.T) {
 	{
 		game := &ticTacGame{
 			CurrentPlayer: H,
-			MainPlayer:    H,
 			Board: []player{
 				M, M, H,
 				H, M, M,
@@ -26,7 +25,6 @@ func TestGameScore(t *testing.T) {
 func TestFirstMove(t *testing.T) {
 	game := &ticTacGame{
 		CurrentPlayer: H,
-		MainPlayer:    H,
 		Board: []player{
 			E, E, E,
 			E, E, E,
@@ -52,7 +50,6 @@ func TestFirstMove(t *testing.T) {
 func TestFirstMachineMove(t *testing.T) {
 	rand.Seed(11)
 	game := &ticTacGame{
-		MainPlayer:    M,
 		CurrentPlayer: M,
 		Board: []player{
 			E, E, E,
@@ -80,7 +77,6 @@ func TestBestSecondMove(t *testing.T) {
 	rand.Seed(2)
 	game := &ticTacGame{
 		CurrentPlayer: M,
-		MainPlayer:    M,
 		Board: []player{
 			H, E, E,
 			E, E, E,
@@ -107,7 +103,6 @@ func TestBestSecondMove(t *testing.T) {
 func TestDontLoseMoveHuman(t *testing.T) {
 	game := &ticTacGame{
 		CurrentPlayer: H,
-		MainPlayer:    H,
 		Board: []player{
 			M, E, M,
 			E, H, E,
@@ -134,7 +129,6 @@ func TestDontLoseMoveHuman2(t *testing.T) {
 	rand.Seed(12)
 	game := &ticTacGame{
 		CurrentPlayer: H,
-		MainPlayer:    H,
 		Board: []player{
 			M, E, H,
 			E, M, M,
@@ -162,7 +156,6 @@ func TestMachineWonMovement(t *testing.T) {
 	rand.Seed(12)
 	game := &ticTacGame{
 		CurrentPlayer: M,
-		MainPlayer:    M,
 		Board: []player{
 			M, E, H,
 			E, M, M,
@@ -189,7 +182,6 @@ func TestMachineWonMovement(t *testing.T) {
 func TestDontLoseMachineMove(t *testing.T) {
 	game := &ticTacGame{
 		CurrentPlayer: M,
-		MainPlayer:    M,
 		Board: []player{
 			H, E, M,
 			E, H, H,

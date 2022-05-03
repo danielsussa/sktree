@@ -61,8 +61,14 @@ func (n *Node) selectBestAction() *Action {
 		if bestAction == nil {
 			bestAction = action
 		}
-		if bestAction.scoreAvg() < action.scoreAvg() {
-			bestAction = action
+		if n.OpponentTurn {
+			if bestAction.scoreAvg() > action.scoreAvg() {
+				bestAction = action
+			}
+		} else {
+			if bestAction.scoreAvg() < action.scoreAvg() {
+				bestAction = action
+			}
 		}
 
 	}

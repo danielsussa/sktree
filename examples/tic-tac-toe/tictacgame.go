@@ -18,11 +18,13 @@ type ticTacGame struct {
 	Board         []player
 	LastMove      int
 	CurrentPlayer player
-	MainPlayer    player
 }
 
 func (t ticTacGame) OpponentTurn() bool {
-	return t.MainPlayer != t.CurrentPlayer
+	if t.CurrentPlayer == M {
+		return true
+	}
+	return false
 }
 
 func (t ticTacGame) Copy() tree.State {
@@ -32,20 +34,15 @@ func (t ticTacGame) Copy() tree.State {
 		Board:         newBoard,
 		LastMove:      t.LastMove,
 		CurrentPlayer: t.CurrentPlayer,
-		MainPlayer:    t.MainPlayer,
 	}
 }
 
-func (p player) toScore(mainPlayer player) float64 {
-	k := 1.0
-	if mainPlayer == M {
-		k = -1.0
-	}
+func (p player) toScore() float64 {
 	switch p {
 	case H:
-		return 1 * k
+		return 1
 	case M:
-		return -1 * k
+		return -1
 	}
 	return 0
 }
@@ -116,7 +113,7 @@ func (t ticTacGame) TurnResult(req tree.TurnRequest) tree.TurnResult {
 }
 
 func (t ticTacGame) GameResult() float64 {
-	return t.winner().toScore(t.MainPlayer)
+	return t.winner().toScore()
 }
 
 func (t *ticTacGame) changePlayer() {
